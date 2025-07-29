@@ -543,6 +543,24 @@ class DataService {
     // ... existing mock data methods  
     return []
   }
+  
+  async getCurrentUser() {
+    try {
+      if (!apiService.isAuthenticated) {
+        return { success: false, error: { Unauthorized: 'Not authenticated' } }
+      }
+      
+      const user = await apiService.getCurrentUser()
+      if (user) {
+        return { success: true, data: user }
+      } else {
+        return { success: false, error: { NotFound: 'User not found' } }
+      }
+    } catch (error) {
+      console.error('Failed to get current user:', error)
+      return { success: false, error: { InternalError: error.message } }
+    }
+  }
 }
 
 // Export singleton instance

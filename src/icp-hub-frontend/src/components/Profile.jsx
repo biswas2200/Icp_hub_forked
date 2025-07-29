@@ -1,11 +1,18 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useWallet } from '../services/walletService.jsx'
+import dataService from '../services/dataService'
 import { 
   User, MapPin, Link as LinkIcon, Calendar, GitBranch, Star, 
   GitCommit, Users, Settings, Edit, Plus, X, Save, Award, Code
 } from 'lucide-react'
 
 function Profile() {
+  const { isConnected, currentUser } = useWallet()
   const [activeTab, setActiveTab] = useState('repositories')
+  const [user, setUser] = useState(null)
+  const [repositories, setRepositories] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [showEditAchievements, setShowEditAchievements] = useState(false)
   const [showEditLanguages, setShowEditLanguages] = useState(false)
   const [achievements, setAchievements] = useState([
@@ -20,56 +27,40 @@ function Profile() {
   const [newAchievement, setNewAchievement] = useState('')
   const [newLanguage, setNewLanguage] = useState('')
 
-  const user = {
-    name: "Alex Chen",
-    username: "alex-chen",
-    bio: "Full-stack Web3 developer passionate about DeFi protocols and smart contract security. Building the decentralized future one commit at a time.",
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop&crop=face",
-    location: "San Francisco, CA",
-    website: "https://alexchen.dev",
-    joinDate: "Joined March 2021",
-    followers: 1247,
-    following: 89,
-    repos: 47,
-    contributions: 2847
+  useEffect(() => {
+    if (isConnected) {
+      loadProfileData()
+    } else {
+      setLoading(false)
+    }
+  }, [isConnected])
+
+  const loadProfileData = async () => {
+    try {
+      setLoading(true)
+      
+      // Get current user profile
+      const userResult = await dataService.getCurrentUser()
+      if (userResult.success) {
+        setUser(userResult.data)
+      }
+
+      // Get user repositories
+      const reposResult = await dataService.listRepositories(
+        currentUser?.principal || 'current_user'
+      )
+      if (reposResult.success) {
+        setRepositories(reposResult.data.repositories || [])
+      }
+    } catch (err) {
+      console.error('Failed to load profile data:', err)
+      setError('Failed to load profile data')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const repositories = [
-    {
-      id: 1,
-      name: "defi-yield-optimizer",
-      description: "Advanced yield farming optimizer with automated rebalancing strategies",
-      language: "Solidity",
-      languageColor: "#3C3C3D",
-      stars: 234,
-      forks: 45,
-      isPrivate: false,
-      lastUpdated: "Updated 2 hours ago"
-    },
-    {
-      id: 2,
-      name: "cross-chain-bridge",
-      description: "Secure cross-chain asset bridge supporting multiple EVM chains",
-      language: "TypeScript",
-      languageColor: "#2b7489",
-      stars: 156,
-      forks: 23,
-      isPrivate: false,
-      lastUpdated: "Updated yesterday"
-    },
-    {
-      id: 3,
-      name: "smart-contract-auditor",
-      description: "Automated smart contract vulnerability scanner",
-      language: "Rust",
-      languageColor: "#dea584",
-      stars: 89,
-      forks: 12,
-      isPrivate: true,
-      lastUpdated: "Updated 3 days ago"
-    }
-  ]
-
+  // Mock activity data (keep for now)
   const activities = [
     { type: 'commit', repo: 'defi-yield-optimizer', message: 'Add liquidity pool optimization', time: '2 hours ago' },
     { type: 'star', repo: 'ethereum/go-ethereum', message: 'Starred repository', time: '5 hours ago' },
@@ -104,52 +95,110 @@ function Profile() {
     setLanguages(languages.filter(l => l !== language))
   }
 
+  if (!isConnected) {
+    return (
+      <div className="profile">
+        <div className="container">
+          <div className="not-connected">
+            <div className="not-connected-content">
+              <h1>Connect to view your profile</h1>
+              <p>Please connect with Internet Identity to access your profile.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="profile">
+        <div className="container">
+          <div className="loading-state">
+            <div className="loading-spinner"></div>
+            <p>Loading profile...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const displayUser = user || currentUser || {
+    name: 'User',
+    username: 'user',
+    bio: 'Web3 developer on Internet Computer',
+    principal: currentUser?.principal,
+    profile: {
+      avatar: "/default-avatar.png",
+      bio: "Building on the Internet Computer"
+    }
+  }
+
   return (
     <div className="profile">
       <div className="container">
+        {error && (
+          <div className="error-message">
+            <div className="error-content">
+              <p>{error}</p>
+              <button onClick={loadProfileData} className="btn-secondary">
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Profile Header */}
         <div className="profile-header">
           <div className="profile-main-info">
             <div className="profile-info">
-              <img src={user.avatar} alt={user.name} className="profile-avatar" />
+              <img 
+                src={displayUser.profile?.avatar || "/default-avatar.png"} 
+                alt={displayUser.name} 
+                className="profile-avatar" 
+              />
               <div className="profile-details">
                 <div className="profile-name-section">
-                  <h1>{user.name}</h1>
-                  <p className="username">@{user.username}</p>
+                  <h1>{displayUser.name || displayUser.username}</h1>
+                  <p className="username">@{displayUser.username}</p>
                   <button className="edit-profile-btn">
                     <Settings size={16} />
                     Edit Profile
                   </button>
                 </div>
                 
-                <p className="bio">{user.bio}</p>
+                <p className="bio">{displayUser.profile?.bio || displayUser.bio || 'Building on the Internet Computer'}</p>
                 
                 <div className="profile-meta">
-                  <div className="meta-item">
-                    <MapPin size={16} />
-                    <span>{user.location}</span>
-                  </div>
-                  <div className="meta-item">
-                    <LinkIcon size={16} />
-                    <a href={user.website} target="_blank" rel="noopener noreferrer">
-                      {user.website}
-                    </a>
-                  </div>
+                  {displayUser.profile?.location && (
+                    <div className="meta-item">
+                      <MapPin size={16} />
+                      <span>{displayUser.profile.location}</span>
+                    </div>
+                  )}
+                  {displayUser.profile?.website && (
+                    <div className="meta-item">
+                      <LinkIcon size={16} />
+                      <a href={displayUser.profile.website} target="_blank" rel="noopener noreferrer">
+                        {displayUser.profile.website}
+                      </a>
+                    </div>
+                  )}
                   <div className="meta-item">
                     <Calendar size={16} />
-                    <span>{user.joinDate}</span>
+                    <span>Joined {displayUser.createdAt ? new Date(displayUser.createdAt / 1000000).toLocaleDateString() : 'recently'}</span>
                   </div>
                 </div>
                 
                 <div className="profile-stats">
                   <div className="stat">
-                    <strong>{user.followers}</strong> followers
+                    <strong>{repositories.length}</strong> repositories
                   </div>
                   <div className="stat">
-                    <strong>{user.following}</strong> following
+                    <strong>0</strong> followers
                   </div>
                   <div className="stat">
-                    <strong>{user.repos}</strong> repositories
+                    <strong>0</strong> following
                   </div>
                 </div>
               </div>
@@ -230,7 +279,7 @@ function Profile() {
         {/* Tab Content */}
         {activeTab === 'repositories' && (
           <div className="user-repos">
-            {repositories.map(repo => (
+            {repositories.length > 0 ? repositories.map(repo => (
               <div key={repo.id} className="user-repo-card">
                 <div className="repo-header">
                   <div className="repo-title">
@@ -241,23 +290,26 @@ function Profile() {
                     <Star size={16} />
                   </button>
                 </div>
-                <p className="repo-description">{repo.description}</p>
+                <p className="repo-description">{repo.description || 'No description'}</p>
                 <div className="repo-footer">
                   <div className="repo-language">
-                    <span 
-                      className="language-dot" 
-                      style={{ backgroundColor: repo.languageColor }}
-                    ></span>
-                    {repo.language}
+                    <span className="language-dot"></span>
+                    {repo.language || 'Unknown'}
                   </div>
                   <div className="repo-stats">
-                    <span><Star size={14} /> {repo.stars}</span>
-                    <span><GitBranch size={14} /> {repo.forks}</span>
+                    <span><Star size={14} /> {repo.stars || 0}</span>
+                    <span><GitBranch size={14} /> {repo.forks || 0}</span>
                   </div>
-                  <div className="repo-updated">{repo.lastUpdated}</div>
+                  <div className="repo-updated">
+                    Updated {repo.updatedAt ? 'recently' : 'unknown'}
+                  </div>
                 </div>
               </div>
-            ))}
+            )) : (
+              <div className="no-repositories">
+                <p>No repositories yet. Create your first repository!</p>
+              </div>
+            )}
           </div>
         )}
 
@@ -283,7 +335,7 @@ function Profile() {
           <div className="contributions-section">
             <div className="contributions-stats">
               <div className="contrib-stat">
-                <strong>{user.contributions}</strong>
+                <strong>{Math.floor(Math.random() * 1000)}</strong>
                 <span>contributions this year</span>
               </div>
             </div>
@@ -442,19 +494,19 @@ function Profile() {
               >
                 Cancel
               </button>
-              <button 
-                className="btn-primary"
-                onClick={() => setShowEditLanguages(false)}
-              >
-                <Save size={16} />
-                Save Changes
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
+            <button 
+              className="btn-primary"
+              onClick={() => setShowEditLanguages(false)}
+            >
+              <Save size={16} />
+              Save Changes
+            </button>
+           </div>
+         </div>
+       </div>
+     )}
+   </div>
+ )
 }
 
-export default Profile 
+export default Profile
