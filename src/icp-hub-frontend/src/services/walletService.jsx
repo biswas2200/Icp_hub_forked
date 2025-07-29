@@ -32,7 +32,7 @@ export const WalletProvider = ({ children }) => {
 
   const initializeAuth = async () => {
     try {
-      setLoading(true)
+      setLoading(false)
       const initialized = await apiService.init()
       
       if (initialized && apiService.isAuthenticated) {

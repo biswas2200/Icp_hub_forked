@@ -36,6 +36,7 @@ function ErrorBoundary({ children }) {
 
   useEffect(() => {
     const handleError = (error) => {
+      console.error('Error caught by boundary:', error)
       setHasError(true)
       setError(error)
     }

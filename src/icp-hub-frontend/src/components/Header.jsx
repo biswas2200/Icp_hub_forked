@@ -6,7 +6,7 @@ import NewRepositoryModal from './NewRepositoryModal'
 import WalletConnectionModal from './WalletConnectionModal'
 
 function Header() {
-    const { 
+  const { 
   isConnected, 
   currentUser,
   principal,
@@ -181,8 +181,8 @@ function Header() {
                           <div className="wallet-status">
                             <div className="status-indicator connected"></div>
                             <div className="wallet-type">
-                              {getWalletDisplayName(walletType)}
-                            </div>
+                                Internet Identity
+                              </div>
                           </div>
                         </div>
                         
@@ -193,15 +193,13 @@ function Header() {
                           </div>
                           {currentUser && (
                           <div className="info-row">
-                            <span className="label">Balance:</span>
-                            <span className="value">
-                              {formatBalance(balance)} {walletType === 'metamask' ? 'ETH' : 'ICP'}
-                            </span>
+                            <span className="label">Username:</span>
+                            <span className="value">{currentUser.username}</span>
                           </div>
                           )}
                           <div className="info-row">
                             <span className="label">Network:</span>
-                            <span className="value">{network}</span>
+                            <span className="value">Internet Computer</span>
                           </div>
                         </div>
                         
@@ -209,10 +207,13 @@ function Header() {
                         
                         <button 
                           className="wallet-menu-item"
-                          onClick={handleProfileClick}
+                          onClick={() => {
+                            setIsWalletModalOpen(true)
+                            setIsWalletMenuOpen(false)
+                  }}
                         >
-                          <User size={16} />
-                          Your Profile
+                          <Settings size={16} />
+                          Re-authenticate
                         </button>
                         
                         <button 

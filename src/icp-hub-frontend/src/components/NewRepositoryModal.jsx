@@ -3,8 +3,8 @@ import { useWallet } from '../services/walletService.jsx'
 import dataService from '../services/dataService'
 import { X, GitBranch, Lock, Globe, FileText, Settings, Loader } from 'lucide-react'
 
-function NewRepositoryModal({ isOpen, onClose }) {
-  const { currentWallet, address } = useWallet()
+function NewRepositoryModal({ isOpen, onClose, onSuccess }) {
+  const { currentUser, isConnected } = useWallet() 
   
   const [formData, setFormData] = useState({
     name: '',
@@ -86,6 +86,11 @@ function NewRepositoryModal({ isOpen, onClose }) {
       return
     }
 
+    if (!isConnected) {
+      setErrors({ general: 'Please connect your wallet first' })
+      return
+    }
+
     setIsSubmitting(true)
     setErrors({})
     
@@ -99,23 +104,33 @@ function NewRepositoryModal({ isOpen, onClose }) {
         gitignoreTemplate: formData.gitignoreTemplate || null,
       }
 
+      console.log('Creating repository with data:', repositoryData)
       const result = await dataService.createRepository(repositoryData)
       
       if (result.success) {
         setSubmitSuccess(true)
+        
+        // Call onSuccess callback if provided
+        if (onSuccess) {
+          onSuccess(result.data)
+        }
         
         // Show success for a moment, then close
         setTimeout(() => {
           handleClose()
         }, 2000)
       } else {
-        // Handle creation error
-        const errorMessage = dataService.getErrorMessage ? 
-          dataService.getErrorMessage(result.error) : 
-          (result.error?.BadRequest || result.error?.Conflict || 'Failed to create repository')
+        // Handle creation error with improved error parsing
+        let errorMessage = 'Failed to create repository'
         
-        if (errorMessage.includes('name') && errorMessage.includes('taken')) {
+        if (result.error) {
+          errorMessage = dataService.parseApiError(result.error)
+        }
+        
+        if (errorMessage.toLowerCase().includes('name') && errorMessage.toLowerCase().includes('taken')) {
           setErrors({ name: 'Repository name is already taken' })
+        } else if (errorMessage.toLowerCase().includes('unauthorized')) {
+          setErrors({ general: 'Please connect your wallet and try again' })
         } else {
           setErrors({ general: errorMessage })
         }
@@ -387,4 +402,4 @@ function NewRepositoryModal({ isOpen, onClose }) {
   )
 }
 
-export default NewRepositoryModal 
+export default NewRepositoryModal

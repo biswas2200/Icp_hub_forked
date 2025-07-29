@@ -3,7 +3,8 @@ import { AuthClient } from '@dfinity/auth-client'
 import { Principal } from '@dfinity/principal'
 
 // Backend canister ID (you'll need to replace this with your actual canister ID)
-const BACKEND_CANISTER_ID = process.env.VITE_BACKEND_CANISTER_ID || 'rrkah-fqaaa-aaaaa-aaaaq-cai'
+//const BACKEND_CANISTER_ID = process.env.VITE_BACKEND_CANISTER_ID || 'rrkah-fqaaa-aaaaa-aaaaq-cai'
+const BACKEND_CANISTER_ID = import.meta.env.VITE_BACKEND_CANISTER_ID || 'rrkah-fqaaa-aaaaa-aaaaq-cai'
 
 // IDL Interface for the backend canister
 const idlFactory = ({ IDL }) => {
@@ -308,11 +309,11 @@ class ApiService {
     const identity = this.authClient.getIdentity()
     this.agent = new HttpAgent({
       identity,
-      host: process.env.VITE_DFX_NETWORK === 'local' ? 'http://localhost:4943' : 'https://ic0.app',
+      host: import.meta.env.VITE_DFX_NETWORK === 'local' ? 'http://localhost:4943' : 'https://ic0.app',
     })
 
     // Fetch root key for certificate validation in development
-    if (process.env.VITE_DFX_NETWORK === 'local') {
+    if (import.meta.env.VITE_DFX_NETWORK === 'local') {
       await this.agent.fetchRootKey()
     }
 
@@ -325,10 +326,10 @@ class ApiService {
   // Setup anonymous actor for public operations
   async setupAnonymousActor() {
     this.agent = new HttpAgent({
-      host: process.env.VITE_DFX_NETWORK === 'local' ? 'http://localhost:4943' : 'https://ic0.app',
+      host: import.meta.env.VITE_DFX_NETWORK === 'local' ? 'http://localhost:4943' : 'https://ic0.app',
     })
 
-    if (process.env.VITE_DFX_NETWORK === 'local') {
+    if (import.meta.env.VITE_DFX_NETWORK === 'local') {
       await this.agent.fetchRootKey()
     }
 
@@ -342,8 +343,8 @@ class ApiService {
   async login() {
     try {
       await this.authClient.login({
-        identityProvider: process.env.VITE_DFX_NETWORK === 'local' 
-          ? `http://localhost:4943/?canisterId=${process.env.VITE_INTERNET_IDENTITY_CANISTER_ID}`
+        identityProvider: import.meta.env.VITE_DFX_NETWORK === 'local' 
+          ? `http://localhost:4943/?canisterId=${import.meta.env.VITE_INTERNET_IDENTITY_CANISTER_ID}`
           : 'https://identity.ic0.app',
         onSuccess: async () => {
           this.isAuthenticated = true
@@ -699,6 +700,73 @@ class ApiService {
     if (error.Forbidden) return `Forbidden: ${error.Forbidden}`
     
     return 'Unknown error occurred'
+  }
+
+  // Add this method to your existing API service class in src/services/api.js
+
+  // Enhanced error handling method
+  getErrorMessage(error) {
+    if (typeof error === 'string') {
+      return error
+    }
+    
+    if (error && typeof error === 'object') {
+      // Handle Motoko Result.Err responses
+      if (error.NotFound) return `Not found: ${error.NotFound}`
+      if (error.Unauthorized) return `Unauthorized: ${error.Unauthorized}`
+      if (error.BadRequest) return `Bad request: ${error.BadRequest}`
+      if (error.Conflict) return `Conflict: ${error.Conflict}`
+      if (error.Forbidden) return `Forbidden: ${error.Forbidden}`
+      if (error.InternalError) return `Internal error: ${error.InternalError}`
+      
+      // Handle network errors
+      if (error.message) {
+        if (error.message.includes('ERR_CONNECTION_REFUSED')) {
+          return 'Backend connection failed. Please ensure DFX is running with: dfx start'
+        }
+        if (error.message.includes('Failed to fetch')) {
+          return 'Network error. Please check your connection and try again.'
+        }
+        return error.message
+      }
+    }
+    
+    return 'An unexpected error occurred'
+  }
+
+  // Improved authentication check
+  async isAuthenticationValid() {
+    try {
+      if (!this.isAuthenticated || !this.actor) {
+        return false
+      }
+      
+      // Try a simple query to verify the connection
+      const result = await this.actor.health()
+      return result === true
+    } catch (error) {
+      console.error('Authentication validation failed:', error)
+      return false
+    }
+  }
+
+  // Add retry logic for failed requests
+  async retryRequest(requestFn, maxRetries = 3, delay = 1000) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const result = await requestFn()
+        return result
+      } catch (error) {
+        console.warn(`Request attempt ${attempt} failed:`, error)
+        
+        if (attempt === maxRetries) {
+          throw error
+        }
+        
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, delay * attempt))
+      }
+    }
   }
 }
 
