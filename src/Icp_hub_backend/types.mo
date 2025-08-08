@@ -21,6 +21,19 @@ module {
         };
     };
 
+    public type UpdateUserProfileRequest = {
+    displayName : ?Text;
+    bio : ?Text;
+    avatar : ?Text;
+    location : ?Text;
+    website : ?Text;
+    socialLinks: {
+            twitter: ?Text;
+            github: ?Text;
+            linkedin: ?Text;
+        };
+    };
+
     // System statistics type
     public type SystemStats = {
         totalUsers: Nat;

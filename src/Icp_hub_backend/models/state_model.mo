@@ -1,4 +1,4 @@
-import Types "./types";
+import Types "../types";
 import HashMap "mo:base/HashMap";
 import Text "mo:base/Text";
 import Principal "mo:base/Principal";
@@ -7,12 +7,12 @@ import Iter "mo:base/Iter";
 import Time "mo:base/Time";
 import Buffer "mo:base/Buffer";
 import Result "mo:base/Result";
-import Utils "./utils";
+import Utils "../utils/utils";
 import Nat "mo:base/Nat";
 
 module State {
     
-    // Type aliases for cleaner code
+    // Type aliases
     type User = Types.User;
     type Repository = Types.Repository;
     type FileEntry = Types.FileEntry;

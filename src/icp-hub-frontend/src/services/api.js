@@ -1,10 +1,12 @@
 import { Actor, HttpAgent } from '@dfinity/agent'
 import { AuthClient } from '@dfinity/auth-client'
 import { Principal } from '@dfinity/principal'
+import { idlFactory } from '../declarations/Icp_hub_backend.did.js';
+import { canisterId } from '../declarations/Icp_hub_backend.did.js';
 
 // Backend canister ID (you'll need to replace this with your actual canister ID)
 //const BACKEND_CANISTER_ID = process.env.VITE_BACKEND_CANISTER_ID || 'rrkah-fqaaa-aaaaa-aaaaq-cai'
-const BACKEND_CANISTER_ID = import.meta.env.VITE_BACKEND_CANISTER_ID || 'rrkah-fqaaa-aaaaa-aaaaq-cai'
+const BACKEND_CANISTER_ID = canisterId || import.meta.env.VITE_BACKEND_CANISTER_ID || 'rrkah-fqaaa-aaaaa-aaaaq-cai'
 
 // IDL Interface for the backend canister
 const idlFactory = ({ IDL }) => {

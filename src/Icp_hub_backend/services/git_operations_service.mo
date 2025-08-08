@@ -1,4 +1,4 @@
-import Types "./types";
+import Types "../types";
 import HashMap "mo:base/HashMap";
 import Text "mo:base/Text";
 import Time "mo:base/Time";
@@ -10,7 +10,7 @@ import Option "mo:base/Option";
 import Int "mo:base/Int";
 import Nat "mo:base/Nat";
 import Blob "mo:base/Blob";
-import Utils "./utils";
+import Utils "../utils/utils";
 import Iter "mo:base/Iter";
 import Order "mo:base/Order";
 
