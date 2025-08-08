@@ -1,4 +1,4 @@
-import Types "./types";
+import Types "../types";
 import Principal "mo:base/Principal";
 import HashMap "mo:base/HashMap";
 import Result "mo:base/Result";
@@ -11,7 +11,7 @@ import Array "mo:base/Array";
 import Buffer "mo:base/Buffer";
 import Iter "mo:base/Iter";
 import Option "mo:base/Option";
-import Utils "./utils";
+import Utils "../utils/utils";
 
 module Incentives {
     // Type definitions

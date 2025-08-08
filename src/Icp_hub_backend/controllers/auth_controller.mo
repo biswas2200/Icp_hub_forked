@@ -1,4 +1,4 @@
-import Types "./types";
+import Types "../types";
 import Principal "mo:base/Principal";
 import HashMap "mo:base/HashMap";
 import Result "mo:base/Result";
@@ -12,7 +12,7 @@ import Char "mo:base/Char";
 import Nat "mo:base/Nat";
 import Nat32 "mo:base/Nat32";
 import Iter "mo:base/Iter";
-import Utils "./utils";
+import Utils "../utils/utils";
 
 module Auth {
     // Type definitions

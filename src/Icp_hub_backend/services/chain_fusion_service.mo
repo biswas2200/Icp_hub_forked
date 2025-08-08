@@ -1,4 +1,4 @@
-import Types "./types";
+import Types "../types";
 import Principal "mo:base/Principal";
 import Text "mo:base/Text";
 import Blob "mo:base/Blob";
@@ -10,10 +10,9 @@ import Nat64 "mo:base/Nat64";
 import Array "mo:base/Array";
 import Buffer "mo:base/Buffer";
 import HashMap "mo:base/HashMap";
-import Utils "./utils";
-//import Hex "mo:encoding/Hex";
+import Utils "../utils/utils";
 import Cycles "mo:base/ExperimentalCycles";
-import Hex "./libs/Hex"; 
+import Hex "mo:hex"; 
 import Debug "mo:base/Debug";
 import Error "mo:base/Error";
 
@@ -369,7 +368,7 @@ module ChainFusion {
         // Create JSON-RPC request for deployment
         let jsonRpc = "{\"jsonrpc\":\"2.0\",\"method\":\"eth_sendTransaction\",\"params\":[{" #
             "\"from\":\"0x0000000000000000000000000000000000000000\"," #
-            "\"data\":\"" # Hex.encode(Blob.toArray(request.bytecode)) # "\"" #
+            "\"data\":\"" # Hex.toText(Blob.toArray(request.bytecode)) # "\"" #
             "}],\"id\":1}";
         
         Text.encodeUtf8(jsonRpc);
@@ -506,12 +505,12 @@ module ChainFusion {
     // Helper functions for address conversion
     private func publicKeyToBitcoinAddress(publicKey: Blob): BitcoinAddress {
         // Simplified - in production use proper Bitcoin address encoding
-        "bc1q" # Hex.encode(Blob.toArray(publicKey));
+        "bc1q" # Hex.toText(Blob.toArray(publicKey));
     };
 
     private func publicKeyToEthereumAddress(publicKey: Blob): EthereumAddress {
         // Simplified - in production use proper Ethereum address derivation
-        "0x" # Text.toLowercase(Hex.encode(Blob.toArray(publicKey)));
+        "0x" # Text.toLowercase(Hex.toText(Blob.toArray(publicKey)));
     };
 
     // Sign transaction for different chains
@@ -578,4 +577,4 @@ module ChainFusion {
         // Make RPC call to Solana
         #Ok(#Pending); // Placeholder
     };
-}
+};

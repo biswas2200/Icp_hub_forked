@@ -114,6 +114,42 @@ export const WalletProvider = ({ children }) => {
     return typeof window !== 'undefined'
   }
 
+const login = async () => {
+  setLoading(true);
+  setError(null);
+  
+  try {
+    await authClient.login({
+      identityProvider: import.meta.env.VITE_DFX_NETWORK === 'local' 
+        ? `http://localhost:4943?canisterId=${import.meta.env.VITE_INTERNET_IDENTITY_CANISTER_ID}`
+        : 'https://identity.ic0.app',
+      onSuccess: async () => {
+        setIsConnected(true);
+        const identity = authClient.getIdentity();
+        const principal = identity.getPrincipal();
+        setPrincipal(principal);
+        
+        // Now fetch the user profile
+        try {
+          const userResult = await apiService.getUser(principal);
+          if (userResult.success) {
+            setCurrentUser(userResult.data);
+          } else {
+            // Handle new user registration flow
+            console.log("User not found in system, needs registration");
+          }
+        } catch (err) {
+          console.error("Failed to fetch user profile:", err);
+        }
+      },
+    });
+  } catch (err) {
+    setError(`Authentication failed: ${err.message}`);
+  } finally {
+    setLoading(false);
+  }
+};
+
   const value = {
     isConnected,
     currentUser,

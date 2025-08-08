@@ -12,8 +12,8 @@ import Iter "mo:base/Iter";
 import Order "mo:base/Order";
 import Debug "mo:base/Debug";
 import Nat32 "mo:base/Nat32";
-import Types "./types";
-import Utils "./utils";
+import Types "../types";
+import Utils "../utils/utils";
 
 module Governance {
 

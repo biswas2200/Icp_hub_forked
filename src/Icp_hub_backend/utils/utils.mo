@@ -1,4 +1,4 @@
-import Types "./types";
+import Types "../types";
 import Time "mo:base/Time";
 import Text "mo:base/Text";
 import Array "mo:base/Array";
