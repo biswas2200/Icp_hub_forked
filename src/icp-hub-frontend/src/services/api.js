@@ -1,16 +1,13 @@
 import { Actor, HttpAgent } from '@dfinity/agent'
 import { AuthClient } from '@dfinity/auth-client'
 import { Principal } from '@dfinity/principal'
-import { idlFactory } from '../declarations/Icp_hub_backend.did.js';
-import { canisterId } from '../declarations/Icp_hub_backend.did.js';
 
-// Backend canister ID (you'll need to replace this with your actual canister ID)
-//const BACKEND_CANISTER_ID = process.env.VITE_BACKEND_CANISTER_ID || 'rrkah-fqaaa-aaaaa-aaaaq-cai'
-const BACKEND_CANISTER_ID = canisterId || import.meta.env.VITE_BACKEND_CANISTER_ID || 'rrkah-fqaaa-aaaaa-aaaaq-cai'
+// Backend canister ID - use your actual canister ID
+const BACKEND_CANISTER_ID = import.meta.env.VITE_BACKEND_CANISTER_ID || 'uxrrr-q7777-77774-qaaaq-cai'
 
-// IDL Interface for the backend canister
+// Manual IDL Interface that matches your Motoko backend
 const idlFactory = ({ IDL }) => {
-  // Define all the types from the backend
+  // Define all the types from your backend
   const Error = IDL.Variant({
     'NotFound': IDL.Text,
     'Unauthorized': IDL.Text,
@@ -127,18 +124,10 @@ const idlFactory = ({ IDL }) => {
     'Err': err,
   })
 
-  const RegisterUserRequest = IDL.Record({
+  const CreateUserRequest = IDL.Record({
     'username': IDL.Text,
     'email': IDL.Opt(IDL.Text),
     'profile': UserProfile,
-  })
-
-  const UpdateUserProfileRequest = IDL.Record({
-    'displayName': IDL.Opt(IDL.Text),
-    'bio': IDL.Opt(IDL.Text),
-    'avatar': IDL.Opt(IDL.Text),
-    'location': IDL.Opt(IDL.Text),
-    'website': IDL.Opt(IDL.Text),
   })
 
   const CreateRepositoryRequest = IDL.Record({
@@ -188,69 +177,56 @@ const idlFactory = ({ IDL }) => {
     'Code': IDL.Null,
   })
 
-  const SearchSortBy = IDL.Variant({
-    'Relevance': IDL.Null,
-    'Name': IDL.Null,
-    'CreatedAt': IDL.Null,
-    'UpdatedAt': IDL.Null,
-    'Stars': IDL.Null,
-    'Size': IDL.Null,
-  })
-
-  const SearchFilter = IDL.Record({
-    'owner': IDL.Opt(IDL.Principal),
-    'language': IDL.Opt(IDL.Text),
-    'isPrivate': IDL.Opt(IDL.Bool),
-    'hasFiles': IDL.Opt(IDL.Bool),
-    'minSize': IDL.Opt(IDL.Nat),
-    'maxSize': IDL.Opt(IDL.Nat),
-    'createdAfter': IDL.Opt(IDL.Int),
-    'createdBefore': IDL.Opt(IDL.Int),
-  })
-
   const SearchRequest = IDL.Record({
     'searchQuery': IDL.Text,
     'scope': SearchScope,
-    'filters': IDL.Opt(SearchFilter),
-    'sortBy': IDL.Opt(SearchSortBy),
     'pagination': IDL.Opt(PaginationParams),
   })
 
-  const UserSearchResult = IDL.Record({
-    'user': User,
-    'score': IDL.Float64,
-    'matchedFields': IDL.Vec(IDL.Text),
-  })
-
-  const SerializableRepositorySearchResult = IDL.Record({
-    'repository': SerializableRepository,
-    'score': IDL.Float64,
-    'matchedFields': IDL.Vec(IDL.Text),
-  })
-
-  const SerializableFileSearchResult = IDL.Record({
-    'file': FileEntry,
-    'repository': SerializableRepository,
-    'score': IDL.Float64,
-    'matchedFields': IDL.Vec(IDL.Text),
-    'snippets': IDL.Vec(IDL.Text),
-  })
-
-  const SerializableSearchResults = IDL.Record({
-    'repositories': IDL.Vec(SerializableRepositorySearchResult),
-    'users': IDL.Vec(UserSearchResult),
-    'files': IDL.Vec(SerializableFileSearchResult),
+  const SearchResults = IDL.Record({
+    'repositories': IDL.Vec(IDL.Record({
+      'repository': SerializableRepository,
+      'score': IDL.Float64,
+      'matchedFields': IDL.Vec(IDL.Text),
+    })),
+    'users': IDL.Vec(IDL.Record({
+      'user': User,
+      'score': IDL.Float64,
+      'matchedFields': IDL.Vec(IDL.Text),
+    })),
     'totalCount': IDL.Nat,
     'hasMore': IDL.Bool,
-    'searchQuery': IDL.Text,
-    'scope': SearchScope,
   })
 
   return IDL.Service({
     // User Management
-    'registerUser': IDL.Func([RegisterUserRequest], [Result(User, Error)], []),
+    'registerUser': IDL.Func([CreateUserRequest], [Result(User, Error)], []),
     'getUser': IDL.Func([IDL.Principal], [Result(User, Error)], ['query']),
-    'updateUser': IDL.Func([UpdateUserProfileRequest], [Result(User, Error)], []),
+    'updateUser': IDL.Func([IDL.Record({
+      'displayName': IDL.Opt(IDL.Text),
+      'bio': IDL.Opt(IDL.Text),
+      'avatar': IDL.Opt(IDL.Text),
+      'location': IDL.Opt(IDL.Text),
+      'website': IDL.Opt(IDL.Text),
+    })], [Result(User, Error)], []),
+
+    // Authentication
+    'login': IDL.Func([], [Result(IDL.Text, Error)], []),
+    'logout': IDL.Func([IDL.Text], [Result(IDL.Bool, Error)], []),
+    'getAuthContext': IDL.Func([], [IDL.Record({
+      'isAuthenticated': IDL.Bool,
+      'principal': IDL.Principal,
+      'method': IDL.Variant({
+        'InternetIdentity': IDL.Null,
+        'NFID': IDL.Null,
+        'Plug': IDL.Null,
+      }),
+      'permissions': IDL.Vec(IDL.Variant({
+        'ViewPublicRepositories': IDL.Null,
+        'CreateRepository': IDL.Null,
+        'ManageOwnRepositories': IDL.Null,
+      }))
+    })], ['query']),
 
     // Repository Management
     'createRepository': IDL.Func([CreateRepositoryRequest], [Result(SerializableRepository, Error)], []),
@@ -265,8 +241,8 @@ const idlFactory = ({ IDL }) => {
     'listFiles': IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [Result(FileListResponse, Error)], ['query']),
     'deleteFile': IDL.Func([IDL.Text, IDL.Text], [Result(IDL.Bool, Error)], []),
 
-    // Search
-    'search': IDL.Func([SearchRequest], [Result(SerializableSearchResults, Error)], []),
+    // Search Methods
+    'search': IDL.Func([SearchRequest], [Result(SearchResults, Error)], []),
     'searchSuggestions': IDL.Func([IDL.Text, IDL.Opt(IDL.Nat)], [Result(IDL.Vec(IDL.Text), Error)], ['query']),
     'searchRepository': IDL.Func([IDL.Text, IDL.Text, IDL.Opt(PaginationParams)], [Result(FileListResponse, Error)], []),
 
@@ -377,6 +353,32 @@ class ApiService {
   getPrincipal() {
     if (!this.isAuthenticated) return null
     return this.authClient.getIdentity().getPrincipal()
+  }
+
+  // Backend login (separate from Internet Identity)
+  async backendLogin() {
+    try {
+      const result = await this.actor.login()
+      
+      if ('Ok' in result) {
+        return { success: true, data: result.Ok }
+      } else {
+        return { success: false, error: result.Err }
+      }
+    } catch (error) {
+      console.error('Backend login failed:', error)
+      return { success: false, error: { InternalError: error.message } }
+    }
+  }
+
+  async getAuthContext() {
+    try {
+      const result = await this.actor.getAuthContext()
+      return { success: true, data: result }
+    } catch (error) {
+      console.error('Failed to get auth context:', error)
+      return { success: false, error: { InternalError: error.message } }
+    }
   }
 
   // User Management Methods
@@ -690,22 +692,6 @@ class ApiService {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
-  // Error handling helper
-  getErrorMessage(error) {
-    if (typeof error === 'string') return error
-    
-    if (error.NotFound) return `Not found: ${error.NotFound}`
-    if (error.Unauthorized) return `Unauthorized: ${error.Unauthorized}`
-    if (error.BadRequest) return `Bad request: ${error.BadRequest}`
-    if (error.InternalError) return `Internal error: ${error.InternalError}`
-    if (error.Conflict) return `Conflict: ${error.Conflict}`
-    if (error.Forbidden) return `Forbidden: ${error.Forbidden}`
-    
-    return 'Unknown error occurred'
-  }
-
-  // Add this method to your existing API service class in src/services/api.js
-
   // Enhanced error handling method
   getErrorMessage(error) {
     if (typeof error === 'string') {
@@ -775,4 +761,4 @@ class ApiService {
 // Create and export a singleton instance
 const apiService = new ApiService()
 
-export default apiService 
+export default apiService
