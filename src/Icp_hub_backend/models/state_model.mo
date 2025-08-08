@@ -20,7 +20,7 @@ module State {
     type Result<T, E> = Types.Result<T, E>;
     type Error = Types.Error;
 
-    // State management class - this acts as a wrapper around your existing HashMaps
+    // State management class - this acts as a wrapper around existing HashMaps
     public class StateManager() {
         
         // IN-MEMORY STORAGE
@@ -33,7 +33,6 @@ module State {
         private var nextRepositoryId: Nat = 1;
 
         //  INITIALIZATION FROM EXISTING STATE 
-        // allows to migrate from current main.mo approach
         public func initFromExisting(
             existingUsers: HashMap.HashMap<Principal, User>,
             existingRepos: HashMap.HashMap<Text, Repository>,
@@ -56,7 +55,7 @@ module State {
             nextRepositoryId := existingNextId;
         };
         
-        // GETTERS FOR MAIN.MO ACCESS
+        // GETTERS
         public func getUsers(): HashMap.HashMap<Principal, User> { users };
         public func getRepositories(): HashMap.HashMap<Text, Repository> { repositories };
         public func getUsernames(): HashMap.HashMap<Text, Principal> { usernames };
