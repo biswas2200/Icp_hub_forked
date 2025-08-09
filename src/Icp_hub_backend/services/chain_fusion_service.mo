@@ -7,13 +7,13 @@ import Time "mo:base/Time";
 import Int "mo:base/Int";
 import Nat "mo:base/Nat";
 import Nat64 "mo:base/Nat64";
-import Array "mo:base/Array";
-import Buffer "mo:base/Buffer";
-import HashMap "mo:base/HashMap";
-import Utils "../utils/utils";
+import _Array "mo:base/Array";
+import _Buffer "mo:base/Buffer";
+import _HashMap "mo:base/HashMap";
+import _Utils "../utils/utils";
 import Cycles "mo:base/ExperimentalCycles";
 import Hex "mo:hex"; 
-import Debug "mo:base/Debug";
+import _Debug "mo:base/Debug";
 import Error "mo:base/Error";
 
 module ChainFusion {
@@ -135,7 +135,7 @@ module ChainFusion {
         let deploymentId = generateDeploymentId(caller);
         let startTime = Time.now();
 
-        switch (request.chain) {
+        let res = switch (request.chain) {
             case (#ICP) { deployToICP(request, deploymentId, caller) };
             case (#Ethereum) { await deployToEthereum(request, deploymentId, caller) };
             case (#Solana) { await deployToSolana(request, deploymentId, caller) };
@@ -148,11 +148,16 @@ module ChainFusion {
             case (#Cosmos) { await deployToCosmos(request, deploymentId, caller) };
             case (#Polkadot) { await deployToPolkadot(request, deploymentId, caller) };
         };
+
+        let duration_ns = Time.now() - startTime;
+        let _ = duration_ns; // Placeholder to silence unused warning
+        res;
+
     };
 
     // Deploy to ICP (native)
     private func deployToICP(
-        request: DeployContractRequest,
+        _request: DeployContractRequest,
         deploymentId: Text,
         caller: Principal
     ): Result<DeploymentRecord, Error> {
@@ -229,13 +234,13 @@ module ChainFusion {
     // Deploy to Solana
     private func deployToSolana(
         request: DeployContractRequest,
-        deploymentId: Text,
-        caller: Principal
+        _deploymentId: Text,
+        _caller: Principal
     ): async Result<DeploymentRecord, Error> {
         // Solana deployment requires different approach
         // Programs are deployed via Solana CLI or Anchor
         
-        let rpcUrl = getRpcUrl(#Solana, request.network);
+        let _rpcUrl = getRpcUrl(#Solana, request.network);
         
         // For Solana, we'd need to:
         // 1. Create a program account
@@ -300,9 +305,9 @@ module ChainFusion {
 
     // Deploy to Near
     private func deployToNear(
-        request: DeployContractRequest,
-        deploymentId: Text,
-        caller: Principal
+        _request: DeployContractRequest,
+        _deploymentId: Text,
+        _caller: Principal
     ): async Result<DeploymentRecord, Error> {
         // Near deployment is different from Ethereum
         #Err(#BadRequest("Near deployment requires NEAR CLI integration"));
@@ -310,9 +315,9 @@ module ChainFusion {
 
     // Deploy to Cosmos
     private func deployToCosmos(
-        request: DeployContractRequest,
-        deploymentId: Text,
-        caller: Principal
+        _request: DeployContractRequest,
+        _deploymentId: Text,
+        _caller: Principal
     ): async Result<DeploymentRecord, Error> {
         // Cosmos deployment for CosmWasm contracts
         #Err(#BadRequest("Cosmos deployment requires CosmWasm integration"));
@@ -320,9 +325,9 @@ module ChainFusion {
 
     // Deploy to Polkadot
     private func deployToPolkadot(
-        request: DeployContractRequest,
-        deploymentId: Text,
-        caller: Principal
+        _request: DeployContractRequest,
+        _deploymentId: Text,
+        _caller: Principal
     ): async Result<DeploymentRecord, Error> {
         // Polkadot deployment for ink! contracts
         #Err(#BadRequest("Polkadot deployment requires ink! integration"));
@@ -348,7 +353,7 @@ module ChainFusion {
                     case _ "";
                 };
             };
-            case (#Testnet(testnet)) {
+            case (#Testnet(_)) {
                 switch (chain) {
                     case (#Ethereum) "https://eth-goerli.g.alchemy.com/v2/YOUR_API_KEY";
                     case (#Polygon) "https://rpc-mumbai.maticvigil.com";
@@ -378,7 +383,7 @@ module ChainFusion {
         // Parse JSON response to get transaction hash
         // This is simplified - in production use proper JSON parsing
         switch (Text.decodeUtf8(Blob.fromArray(body))) {
-            case (?text) {
+            case (?_) {
                 // Extract tx hash from response
                 "0x" # Nat.toText(Int.abs(Time.now()));
             };
@@ -411,12 +416,12 @@ module ChainFusion {
         };
     };
 
-    private func sendViaLayerZero(message: CrossChainMessage): async Result<Text, Error> {
+    private func sendViaLayerZero(_message: CrossChainMessage): async Result<Text, Error> {
         // LayerZero integration
         #Err(#BadRequest("LayerZero integration not yet implemented"));
     };
 
-    private func sendViaWormhole(message: CrossChainMessage): async Result<Text, Error> {
+    private func sendViaWormhole(_message: CrossChainMessage): async Result<Text, Error> {
         // Wormhole integration
         #Err(#BadRequest("Wormhole integration not yet implemented"));
     };
@@ -564,15 +569,15 @@ module ChainFusion {
     };
 
     private func checkEthereumTransactionStatus(
-        chain: BlockchainType,
-        txHash: Text
+        _chain: BlockchainType,
+        _txHash: Text
     ): async Result<DeploymentStatus, Error> {
         // Make RPC call to check transaction receipt
         #Ok(#Pending); // Placeholder
     };
 
     private func checkSolanaTransactionStatus(
-        txHash: Text
+        _txHash: Text
     ): async Result<DeploymentStatus, Error> {
         // Make RPC call to Solana
         #Ok(#Pending); // Placeholder

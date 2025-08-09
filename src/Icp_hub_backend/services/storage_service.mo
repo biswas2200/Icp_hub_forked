@@ -12,15 +12,15 @@ import Int "mo:base/Int";
 import Array "mo:base/Array";
 import Buffer "mo:base/Buffer";
 import Iter "mo:base/Iter";
-import Option "mo:base/Option";
+import _Option "mo:base/Option";
 import Utils "../utils/utils";
-import Cycles "mo:base/ExperimentalCycles";
+import _Cycles "mo:base/ExperimentalCycles";
 import Float "mo:base/Float";
 import SHA256 "mo:sha2/Sha256";
 import Hex "mo:hex";
-import Debug "mo:base/Debug";
+import _Debug "mo:base/Debug";
 import Error "mo:base/Error";
-import Char "mo:base/Char";
+import _Char "mo:base/Char";
 
 module Storage {
     // Type definitions
@@ -830,7 +830,7 @@ module Storage {
             
             while (offset < bytes.size()) {
                 let end = Nat.min(offset + chunkSize, bytes.size());
-                let chunk = Array.subArray(bytes, offset, end - offset);
+                let chunk = Array.subArray(bytes, offset, Nat.sub(end, offset));
                 chunks.add(Blob.fromArray(chunk));
                 offset := end;
             };
