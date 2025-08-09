@@ -7,7 +7,7 @@ import Time "mo:base/Time";
 import Result "mo:base/Result";
 import Utils "../utils/utils";
 import Buffer "mo:base/Buffer";
-import Debug "mo:base/Debug";
+import _Debug "mo:base/Debug";
 import Nat "mo:base/Nat";
 import Int "mo:base/Int";
 import Float "mo:base/Float";
@@ -44,11 +44,11 @@ module RepositoryManager {
             let users = stateManager.getUsers();
             let repositories = stateManager.getRepositories();
 
-            // Check if user exists and get user object
-            let user = switch (users.get(caller)) {
-                case null { return #Err(#Unauthorized("User not registered")) };
-                case (?user) { user };
-            };
+            // Check if user exists
+                        switch (users.get(caller)) {
+                            case null { return #Err(#Unauthorized("User not registered")) };
+                            case (?_) {};
+                        };
 
             // Input Validation
             if (not Utils.isValidRepositoryName(request.name)) {
@@ -289,51 +289,52 @@ module RepositoryManager {
                 };
 
                 // Relevance Scoring
-                let totalScore = do {
+                do {
                     var score = 0.0;
                     let matchedFields = Buffer.Buffer<Text>(0);
-
+                                        
                     let nameScore = calculateRelevanceScore(searchQuery, repo.name, 3.0);
                     if (nameScore > 0) {
-                        score += nameScore;
-                        matchedFields.add("name");
+                    score += nameScore;
+                    matchedFields.add("name");
                     };
-
+                        
                     switch (repo.description) {
-                        case null {};
-                        case (?desc) {
-                            let descScore = calculateRelevanceScore(searchQuery, desc, 2.0);
-                            if (descScore > 0) {
-                                score += descScore;
-                                matchedFields.add("description");
-                            };
-                        };
-                    };
-
-                    for (topic in repo.settings.topics.vals()) {
-                        let topicScore = calculateRelevanceScore(searchQuery, topic, 1.0);
-                        if (topicScore > 0) {
-                            score += topicScore;
-                            if (not Utils.arrayContains(Buffer.toArray(matchedFields), "topics", Text.equal)) {
-                                matchedFields.add("topics");
-                            };
-                        };
-                    };
-
-                    // Popularity Boost
-                    let popularityBoost = Float.fromInt(repo.stars) * 0.1 + Float.fromInt(repo.forks) * 0.05;
-                    score += popularityBoost;
-
-                    // Result Aggregation
-                    if (score > 0) {
-                        results.add({
-                            repository = repo;
-                            score = score;
-                            matchedFields = Buffer.toArray(matchedFields);
-                        });
-                    };
-                    score;
-                };
+                            case null {};
+                            case (?desc) {
+                            let descScore = 
+                            calculateRelevanceScore(searchQuery, desc, 2.0);
+                                                    if (descScore > 0) {
+                                                        score += descScore;
+                                                        matchedFields.add("description");
+                                                    };
+                                                };
+                                            };
+                        
+                                            for (topic in repo.settings.topics.vals()) {
+                                                let topicScore = 
+                                                calculateRelevanceScore(searchQuery, topic, 1.0);
+                                                if (topicScore > 0) {
+                                                    score += topicScore;
+                                                    if (not Utils.arrayContains(Buffer.toArray(matchedFields), "topics", Text.equal)) {
+                                                        matchedFields.add("topics");
+                                                    };
+                                                };
+                                            };
+                        
+                                            // Popularity Boost
+                                            let popularityBoost = Float.fromInt(repo.stars) * 0.1 + Float.fromInt(repo.forks) * 0.05;
+                                            score += popularityBoost;
+                        
+                                            // Result Aggregation
+                                            if (score > 0) {
+                                                results.add({
+                                                    repository = repo;
+                                                    score = score;
+                                                    matchedFields = Buffer.toArray(matchedFields);
+                                                });
+                                            };
+                                        };
             };
 
             // Sorting
@@ -497,7 +498,7 @@ module RepositoryManager {
         public func uploadFile(
             caller: Principal,
             request: UploadFileRequest,
-            useIPFS: ?Bool
+            _useIPFS: ?Bool
         ): Result<FileEntry, Error> {
             let repositories = stateManager.getRepositories();
             let fileType = Utils.detectFileType(request.path, request.content);

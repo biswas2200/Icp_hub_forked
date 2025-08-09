@@ -11,11 +11,11 @@ import Nat "mo:base/Nat";
 import Buffer "mo:base/Buffer";
 import Utils "./utils/utils";
 import Option "mo:base/Option";
-import Order "mo:base/Order";
+import _Order "mo:base/Order";
 import Int "mo:base/Int";
 import Float "mo:base/Float";
-import Timer "mo:base/Timer";
-import Prim "mo:prim";
+import _Timer "mo:base/Timer";
+import _Prim "mo:prim";
 import State "./models/state_model";
 import User "./controllers/user_controller";
 import Repository "./controllers/repository_controller";
@@ -29,7 +29,7 @@ import Incentives "./services/incentives_service";
 import Storage "./services/storage_service";
 import Config "./config/app_config";
 
-actor ICPHub {
+persistent actor ICPHub {
   // Type aliases for cleaner code
   type User = Types.User;
   type Repository = Types.Repository;
@@ -157,36 +157,36 @@ actor ICPHub {
   };
 
   // CORE MANAGERS
-  private let stateManager = State.StateManager();
-  private let userManager = User.UserManager(stateManager);
-  private let repositoryManager = Repository.RepositoryManager(stateManager);
-  private let searchManager = Search.SearchManager(stateManager, userManager, repositoryManager);
+  private transient let stateManager = State.StateManager();
+  private transient let userManager = User.UserManager(stateManager);
+  private transient let repositoryManager = Repository.RepositoryManager(stateManager);
+  private transient let searchManager = Search.SearchManager(stateManager, userManager, repositoryManager);
 
   // SUPPORTING MANAGERS
-  private let incentiveSystem = Incentives.IncentiveSystem();
-  private let ipfsConfig = Config.ipfsConfig;
-  private var storageManager = Storage.StorageManager(ipfsConfig);
-  private var governanceState = Governance.GovernanceState();
-  private var sessionManager = Auth.SessionManager();
-  private var apiKeyManager = Auth.ApiKeyManager();
+  private transient let incentiveSystem = Incentives.IncentiveSystem();
+  private transient let ipfsConfig = Config.ipfsConfig;
+  private transient var storageManager = Storage.StorageManager(ipfsConfig);
+  private transient var governanceState = Governance.GovernanceState();
+  private transient var sessionManager = Auth.SessionManager();
+  private transient var apiKeyManager = Auth.ApiKeyManager();
 
   // Stable variables for upgrade persistence
-  private stable var usernamesEntries : [(Text, Principal)] = [];
-  private stable var usersEntries : [(Principal, User)] = [];
-  private stable var repositoriesEntries : [(Text, SerializableRepository)] = [];
-  private stable var nextRepositoryId : Nat = 1;
-  private stable var deploymentsEntries : [(Text, [DeploymentRecord])] = [];
+  private var usernamesEntries : [(Text, Principal)] = [];
+  private var usersEntries : [(Principal, User)] = [];
+  private var repositoriesEntries : [(Text, SerializableRepository)] = [];
+  private var nextRepositoryId : Nat = 1;
+  private var deploymentsEntries : [(Text, [DeploymentRecord])] = [];
 
   // In-memory deployments storage (could be moved to state manager in future)
-  private var deployments = HashMap.HashMap<Text, [Types.DeploymentRecord]>(10, Text.equal, Text.hash);
+  private transient var deployments = HashMap.HashMap<Text, [Types.DeploymentRecord]>(10, Text.equal, Text.hash);
 
-  private stable var storageManagerData: ?{
+  private var storageManagerData: ?{
         fileMetadata: [(Text, FileMetadata)];
         stats: StorageStats;
         pinningServices: [(PinningService, Text)];
     } = null;
 
-  private stable var governanceStateData : ?{
+  private var governanceStateData : ?{
     proposals : [(ProposalId, Proposal)];
     governanceTokens : [(Principal, GovernanceToken)];
     config : GovernanceConfig;
@@ -194,13 +194,13 @@ actor ICPHub {
     nextProposalId : ProposalId;
   } = null;
 
-  private stable var sessionManagerData : ?[(Text, SessionToken)] = null;
-  private stable var apiKeyManagerData : ?{
+  private var sessionManagerData : ?[(Text, SessionToken)] = null;
+  private var apiKeyManagerData : ?{
     apiKeys : [(Text, ApiKey)];
     keysByPrincipal : [(Principal, [Text])];
   } = null;
 
-  private stable var stableIncentiveData : ?{
+  private var stableIncentiveData : ?{
     token : Token;
     balances : [(Principal, TokenAmount)];
     rewards : [(Text, Reward)];
@@ -211,7 +211,7 @@ actor ICPHub {
     treasury : Treasury;
   } = null;
 
-  private let ADMIN_PRINCIPALS = [
+  private transient let ADMIN_PRINCIPALS = [
     "rdmx6-jaaaa-aaaah-qcaiq-cai", // Replace with actual admin principal
   ];
 
@@ -367,7 +367,7 @@ actor ICPHub {
     // Handle incentives after successful upload
     switch (fileResult) {
       case (#Ok(fileEntry)) {
-        ignore incentiveSystem.updateMetrics(caller, request.repositoryId, #Commit);
+        incentiveSystem.updateMetrics(caller, request.repositoryId, #Commit);
         
         let rewardResult = incentiveSystem.distributeReward(
           caller,
@@ -542,38 +542,41 @@ actor ICPHub {
   };
 
   public func autoDeployOnCommit(
-    repositoryId : Text,
-    commitId : Text,
-    changedFiles : [Text],
-  ) : async () {
-    let repositories = stateManager.getRepositories();
-    
-    switch (repositories.get(repositoryId)) {
-      case null {};
-      case (?repo) {
-        // Check each deployment target
-        for (target in repo.deploymentTargets.vals()) {
-          if (target.autoDeploy) {
-            // Find contract files for this chain
-            for (filePath in changedFiles.vals()) {
-              switch (repo.files.get(filePath)) {
-                case null {};
-                case (?file) {
-                  switch (file.fileType) {
-                    case (?#SmartContract(contractInfo)) {
-                      if (contractInfo.chain == target.chain) {
-                        // Auto-deploy
-                        let _ = await deployContract(
-                          repositoryId,
-                          filePath,
-                          target.chain,
-                          target.network,
-                          null,
-                        );
-                      };
+  repositoryId : Text,
+  commitId : Text,
+  changedFiles : [Text],
+) : async () {
+  let repositories = stateManager.getRepositories();
+  
+  switch (repositories.get(repositoryId)) {
+    case null {};
+    case (?repo) {
+      // Log the commit being processed
+      Debug.print("Auto-deploying changes from commit: " # commitId);
+      
+      // Check each deployment target
+      for (target in repo.deploymentTargets.vals()) {
+        if (target.autoDeploy) {
+          // Find contract files for this chain
+          for (filePath in changedFiles.vals()) {
+            switch (repo.files.get(filePath)) {
+              case null {};
+              case (?file) {
+                switch (file.fileType) {
+                  case (?#SmartContract(contractInfo)) {
+                    if (contractInfo.chain == target.chain) {
+                      // Auto-deploy with commit reference
+                      let _ = await deployContract(
+                        repositoryId,
+                        filePath,
+                        target.chain,
+                        target.network,
+                        null,
+                      );
+                      Debug.print("Auto-deployed " # filePath # " from commit " # commitId);
                     };
-                    case _ {};
                   };
+                  case _ {};
                 };
               };
             };
@@ -582,6 +585,7 @@ actor ICPHub {
       };
     };
   };
+};
 
   // COLLABORATOR MANAGEMENT APIs
 
@@ -626,10 +630,10 @@ actor ICPHub {
   // GOVERNANCE APIs
 
   public shared ({ caller }) func initializeGovernanceTokens(amount : TokenAmount) : async Result<Bool, Error> {
-    // Check if user is registered
+  // Check if user is registered
     switch (stateManager.getUsers().get(caller)) {
       case null { return #Err(#Unauthorized("User not registered")) };
-      case (?user) {
+      case (?_) { // Use wildcard since we only need to verify existence
         governanceState.initializeGovernanceToken(caller, amount);
         return #Ok(true);
       };
@@ -692,7 +696,7 @@ actor ICPHub {
   public query ({ caller }) func canCreateProposal() : async Bool {
     switch (stateManager.getUsers().get(caller)) {
       case null { false };
-      case (?user) {
+      case (?_) {
         let votingPower = governanceState.getVotingPower(caller);
         votingPower >= 10;
       };
@@ -751,58 +755,65 @@ actor ICPHub {
 
   // Create a collaborator promotion proposal
   public shared ({ caller }) func proposeCollaboratorPromotion(
-    repositoryId : Text,
-    collaboratorUsername : Text,
-    newPermission : Types.CollaboratorPermission,
-    title : Text,
-    description : Text,
-  ) : async Result<Proposal, Error> {
-    let repositories = stateManager.getRepositories();
-    let usernames = stateManager.getUsernames();
-    let users = stateManager.getUsers();
-    
-    // Verify repository exists
-    switch (repositories.get(repositoryId)) {
-      case null { return #Err(#NotFound("Repository not found")) };
-      case (?repo) {
-        // Check if caller can manage collaborators
-        if (not CollaboratorManager.canManageCollaborators(caller, repo)) {
-          return #Err(#Forbidden("You don't have permission to propose collaborator changes"));
-        };
+  repositoryId : Text,
+  collaboratorUsername : Text,
+  newPermission : Types.CollaboratorPermission,
+  title : Text,
+  description : Text,
+) : async Result<Proposal, Error> {
+  let repositories = stateManager.getRepositories();
+  let usernames = stateManager.getUsernames();
+  let users = stateManager.getUsers();
+  
+  // Verify repository exists
+  switch (repositories.get(repositoryId)) {
+    case null { return #Err(#NotFound("Repository not found")) };
+    case (?repo) {
+      // Check if caller can manage collaborators
+      if (not CollaboratorManager.canManageCollaborators(caller, repo)) {
+        return #Err(#Forbidden("You don't have permission to propose collaborator changes"));
+      };
 
-        // Get collaborator principal from username
-        let collaboratorPrincipal = switch (usernames.get(collaboratorUsername)) {
-          case null { return #Err(#NotFound("User not found")) };
-          case (?principal) { principal };
-        };
+      // Get collaborator principal from username
+      let collaboratorPrincipal = switch (usernames.get(collaboratorUsername)) {
+        case null { return #Err(#NotFound("User not found")) };
+        case (?principal) { principal };
+      };
 
-        // Verify collaborator exists
-        switch (repo.collaborators.get(collaboratorPrincipal)) {
-          case null { return #Err(#NotFound("User is not a collaborator")) };
-          case (?collab) {
-            let proposalRequest : CreateProposalRequest = {
-              proposalType = #CollaboratorPromotion({
-                repositoryId = repositoryId;
-                collaborator = collaboratorPrincipal;
-                newPermission = newPermission;
-              });
-              title = title;
-              description = description;
-              votingDuration = null;
-              executionDelay = null;
-            };
-
-            return governanceState.createProposal(caller, proposalRequest, users);
+      // Verify collaborator exists
+      switch (repo.collaborators.get(collaboratorPrincipal)) {
+        case null { return #Err(#NotFound("User is not a collaborator")) };
+        case (?_) { 
+          let proposalRequest : CreateProposalRequest = {
+            proposalType = #CollaboratorPromotion({
+              repositoryId = repositoryId;
+              collaborator = collaboratorPrincipal;
+              newPermission = newPermission;
+            });
+            title = title;
+            description = description;
+            votingDuration = null;
+            executionDelay = null;
           };
+
+          return governanceState.createProposal(caller, proposalRequest, users);
         };
       };
     };
   };
+};
 
   // Timer function to automatically process proposals (call this periodically)
   public shared func processGovernanceTimers() : async () {
     let processedProposals = governanceState.processProposalResults();
-    // for logging or notifications
+    
+    // Log processed proposals for monitoring
+    if (processedProposals.size() > 0) {
+      Debug.print("Processed " # Nat.toText(processedProposals.size()) # " governance proposals");
+      for (proposalId in processedProposals.vals()) {
+        Debug.print("Processed proposal: " # Nat.toText(proposalId));
+      };
+    };
   };
 
   // AUTHENTICATION APIs
@@ -817,7 +828,7 @@ actor ICPHub {
       case null {
         return #Err(#NotFound("User not registered. Please register first."));
       };
-      case (?user) {
+      case (?_) { // Use wildcard since we only need to verify existence
         let session = sessionManager.createSession(caller);
         #Ok(session);
       };
@@ -845,7 +856,7 @@ actor ICPHub {
       case null {
         return #Err(#Unauthorized("User not registered"));
       };
-      case (?user) {
+      case (?_) { // Use wildcard since we only need to verify existence
         let expiresAt = switch (expiresInDays) {
           case null { null };
           case (?days) {
@@ -912,7 +923,7 @@ actor ICPHub {
   };
 
   // Rate limiting example
-  private var rateLimitStore = HashMap.HashMap<Text, Auth.RateLimitEntry>(100, Text.equal, Text.hash);
+  private transient var rateLimitStore = HashMap.HashMap<Text, Auth.RateLimitEntry>(100, Text.equal, Text.hash);
 
   public shared ({ caller }) func rateLimitedEndpoint() : async Result<Text, Error> {
     let config : Auth.RateLimitConfig = {
@@ -954,13 +965,22 @@ actor ICPHub {
       case null 50;
       case (?l) Nat.min(l, 100);
     };
-
     let actualOffset = switch (offset) {
       case null 0;
       case (?o) o;
     };
 
-    GitOps.getCommitHistory(repositoryId, branch, actualLimit, actualOffset, stateManager.getRepositories());
+    let repositories = stateManager.getRepositories();
+    switch (repositories.get(repositoryId)) {
+      case null { #Err(#NotFound("Repository not found")) };
+      case (?repo) {
+        if (not Utils.canReadRepository(caller, repo)) {
+          #Err(#Forbidden("No read permission"));
+        } else {
+          GitOps.getCommitHistory(repositoryId, branch, actualLimit, actualOffset, repositories);
+        };
+      };
+    };
   };
 
   // Get commit diff
@@ -995,7 +1015,7 @@ actor ICPHub {
     
     switch (users.get(caller)) {
       case null { #Err(#Unauthorized("User not registered")) };
-      case (?user) {
+      case (?_) {
         // Validate new repository name
         if (not Utils.isValidRepositoryName(request.newName)) {
           return #Err(#BadRequest("Invalid repository name"));
@@ -1198,7 +1218,7 @@ actor ICPHub {
         switch (base, compare) {
           case (null, _) { #Err(#NotFound("Base branch not found")) };
           case (_, null) { #Err(#NotFound("Compare branch not found")) };
-          case (?baseBr, ?compareBr) {
+          case (?_, ?_) {
             // Simplified comparison
             #Ok({
               ahead = 0;
@@ -1365,6 +1385,7 @@ actor ICPHub {
     chain : Types.BlockchainType,
     transactionHash : Text,
   ) : async Result<Types.DeploymentStatus, Error> {
+    Debug.print("Checking deployment status id = " # deploymentId);
     await ChainFusion.getDeploymentStatus(chain, transactionHash);
   };
 
@@ -1430,7 +1451,7 @@ actor ICPHub {
     };
   };
 
-  public shared ({ caller }) func uploadFileWithAutoDeploy(
+  public shared func uploadFileWithAutoDeploy(
     request : UploadFileRequest
   ) : async Result<FileEntry, Error> {
     // First upload the file using existing logic
@@ -1470,7 +1491,7 @@ actor ICPHub {
     };
   };
 
-  public shared func verifyDeployment(
+  public shared ({ caller }) func verifyDeployment(
     repositoryId : Text,
     deploymentId : Text,
     chain : Types.BlockchainType,
@@ -1480,6 +1501,9 @@ actor ICPHub {
     switch (repositories.get(repositoryId)) {
       case null { #Err(#NotFound("Repository not found")) };
       case (?repo) {
+        if (not Utils.canReadRepository(caller, repo)) {
+          return #Err(#Forbidden("No read permission"));
+        };
         switch (deployments.get(repositoryId)) {
           case null { #Err(#NotFound("No deployments found")) };
           case (?history) {
@@ -1600,7 +1624,7 @@ actor ICPHub {
     
     switch (repositories.get(repositoryId)) {
       case (null) return #Err(#NotFound("Repository not found"));
-      case (?repo) {
+      case (?_) {
         // Update metrics based on contribution type
         let metricType = switch (contributionType) {
           case (#Commit(_)) #Commit;
@@ -1782,7 +1806,7 @@ actor ICPHub {
       case (#Err(e)) { #Err(e) };
       case (#Ok(commit)) {
         // Auto-distribute commit reward
-        ignore incentiveSystem.updateMetrics(caller, request.repositoryId, #Commit);
+        incentiveSystem.updateMetrics(caller, request.repositoryId, #Commit);
 
         let rewardResult = incentiveSystem.distributeReward(
           caller,
@@ -1846,7 +1870,7 @@ actor ICPHub {
         
         // Update contribution metrics
         switch (result) {
-          case (#Ok(metadata)) {
+          case (#Ok(_)) {
             incentiveSystem.updateMetrics(caller, repositoryId, #Commit);
           };
           case (#Err(_)) {};
@@ -1919,7 +1943,7 @@ actor ICPHub {
   };
   
   // Get storage statistics
-  public query({ caller }) func getStorageStats(): async StorageStats {
+  public query func getStorageStats(): async StorageStats {
     storageManager.getStats();
   };
   
@@ -2031,7 +2055,7 @@ actor ICPHub {
   };
   
   // Enhanced Search APIs
-  public shared({ caller }) func searchWithCache(
+  public shared func searchWithCache(
     request: SearchRequest
   ): async Result<Types.SerializableSearchResults, Error> {
     // Use the regular search function

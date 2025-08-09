@@ -1,5 +1,5 @@
 import Types "../types";
-import HashMap "mo:base/HashMap";
+import _HashMap "mo:base/HashMap";
 import Text "mo:base/Text";
 import Principal "mo:base/Principal";
 import Array "mo:base/Array";
@@ -7,7 +7,7 @@ import Time "mo:base/Time";
 import Result "mo:base/Result";
 import Utils "../utils/utils";
 import Buffer "mo:base/Buffer";
-import Debug "mo:base/Debug";
+import _Debug "mo:base/Debug";
 import StateModel "../models/state_model";
 import Nat "mo:base/Nat";
 
@@ -171,6 +171,11 @@ module UserManager {
                             matchedFields.add("displayName");
                         };
                     };
+                };
+
+                if (user.principal == caller) {
+                    totalScore += 10.0;
+                    matchedFields.add("self");
                 };
 
                 if (totalScore > 0) {

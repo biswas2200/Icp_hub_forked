@@ -1,10 +1,10 @@
-import Time "mo:base/Time";
+import _Time "mo:base/Time";
 import Principal "mo:base/Principal";
 import HashMap "mo:base/HashMap";
 import Iter "mo:base/Iter"; 
 import Text "mo:base/Text";  
 import Array "mo:base/Array";
-import Hash "mo:base/Hash";
+import _Hash "mo:base/Hash";
 
 module {
     // User Profile type
