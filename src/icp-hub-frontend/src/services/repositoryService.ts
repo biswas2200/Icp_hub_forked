@@ -1,4 +1,4 @@
-import { apiService } from './apiService.ts'
+import apiService from './api'
 
 export interface Repository {
   id: string
@@ -46,21 +46,47 @@ class RepositoryService {
   private baseUrl = '/repositories'
   private isBackendAvailable = true
 
-  async getRepositories(filters: RepositoryFilters = {}): Promise<RepositoryListResponse> {
+  async getRepositories(_filters: RepositoryFilters = {}): Promise<RepositoryListResponse> {
     try {
       if (!this.isBackendAvailable) {
         throw new Error('Backend not available')
       }
 
-      const params = new URLSearchParams()
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value && value !== 'all') {
-          params.append(key, value)
-        }
+      // Use the apiService.listRepositories method
+      const result = await (apiService as any).listRepositories(null, {
+        page: 1,
+        limit: 100
       })
-
-      const response = await apiService.get(`${this.baseUrl}?${params.toString()}`)
-      return response.data
+      
+      if (result.success) {
+        // Transform the backend response to match our interface
+        const repositories = result.data.repositories.map((repo: any) => ({
+          id: repo.id,
+          name: repo.name,
+          description: repo.description?.[0] || undefined,
+          owner: repo.owner.toString(),
+          visibility: repo.isPrivate ? 'private' : 'public',
+          stars: Number(repo.stars),
+          forks: Number(repo.forks),
+          watchers: 0, // Not available in backend
+          issues: 0, // Not available in backend
+          language: repo.language?.[0] || undefined,
+          license: repo.settings.license?.[0] || undefined,
+          createdAt: new Date(Number(repo.createdAt) / 1000000).toISOString(),
+          updatedAt: new Date(Number(repo.updatedAt) / 1000000).toISOString(),
+          chains: [],
+          cloneUrl: undefined
+        }))
+        
+        return {
+          repositories,
+          total: Number(result.data.totalCount),
+          page: 1,
+          limit: 100
+        }
+      } else {
+        throw new Error('Failed to fetch repositories')
+      }
     } catch (error) {
       console.warn('Backend not available, using mock data:', error)
       this.isBackendAvailable = false
@@ -74,8 +100,30 @@ class RepositoryService {
         throw new Error('Backend not available')
       }
 
-      const response = await apiService.get(`${this.baseUrl}/${id}`)
-      return response.data
+      const result = await (apiService as any).getRepository(id)
+      
+      if (result.success) {
+        const repo = result.data
+        return {
+          id: repo.id,
+          name: repo.name,
+          description: repo.description?.[0] || undefined,
+          owner: repo.owner.toString(),
+          visibility: repo.isPrivate ? 'private' : 'public',
+          stars: Number(repo.stars),
+          forks: Number(repo.forks),
+          watchers: 0,
+          issues: 0,
+          language: repo.language?.[0] || undefined,
+          license: repo.settings.license?.[0] || undefined,
+          createdAt: new Date(Number(repo.createdAt) / 1000000).toISOString(),
+          updatedAt: new Date(Number(repo.updatedAt) / 1000000).toISOString(),
+          chains: [],
+          cloneUrl: undefined
+        }
+      } else {
+        throw new Error('Failed to fetch repository')
+      }
     } catch (error) {
       console.warn('Backend not available, using mock data:', error)
       this.isBackendAvailable = false
@@ -89,8 +137,30 @@ class RepositoryService {
         throw new Error('Backend not available')
       }
 
-      const response = await apiService.post(this.baseUrl, repositoryData)
-      return response.data
+      const result = await (apiService as any).createRepository(repositoryData)
+      
+      if (result.success) {
+        const repo = result.data
+        return {
+          id: repo.id,
+          name: repo.name,
+          description: repo.description?.[0] || undefined,
+          owner: repo.owner.toString(),
+          visibility: repo.isPrivate ? 'private' : 'public',
+          stars: Number(repo.stars),
+          forks: Number(repo.forks),
+          watchers: 0,
+          issues: 0,
+          language: repo.language?.[0] || undefined,
+          license: repo.settings.license?.[0] || undefined,
+          createdAt: new Date(Number(repo.createdAt) / 1000000).toISOString(),
+          updatedAt: new Date(Number(repo.updatedAt) / 1000000).toISOString(),
+          chains: [],
+          cloneUrl: undefined
+        }
+      } else {
+        throw new Error('Failed to create repository')
+      }
     } catch (error) {
       console.warn('Backend not available, using mock data:', error)
       this.isBackendAvailable = false
@@ -104,8 +174,8 @@ class RepositoryService {
         throw new Error('Backend not available')
       }
 
-      const response = await apiService.put(`${this.baseUrl}/${id}`, repositoryData)
-      return response.data
+      const response = await (apiService as any).put(`${this.baseUrl}/${id}`, repositoryData)
+      return response.data as Repository
     } catch (error) {
       console.warn('Backend not available, using mock data:', error)
       this.isBackendAvailable = false

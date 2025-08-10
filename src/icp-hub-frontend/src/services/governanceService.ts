@@ -1,7 +1,7 @@
 // Governance Service for ICP Hub backend integration
 // This service handles all governance and DAO-related operations
 
-import { apiService } from './api'
+import apiService from './api'
 
 // Governance types matching backend
 export interface ProposalId {
