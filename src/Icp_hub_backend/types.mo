@@ -1,10 +1,10 @@
-import Time "mo:base/Time";
+import _Time "mo:base/Time";
 import Principal "mo:base/Principal";
 import HashMap "mo:base/HashMap";
 import Iter "mo:base/Iter"; 
 import Text "mo:base/Text";  
 import Array "mo:base/Array";
-import Hash "mo:base/Hash";
+import _Hash "mo:base/Hash";
 
 module {
     // User Profile type
@@ -15,6 +15,19 @@ module {
         location: ?Text;
         website: ?Text;
         socialLinks: {
+            twitter: ?Text;
+            github: ?Text;
+            linkedin: ?Text;
+        };
+    };
+
+    public type UpdateUserProfileRequest = {
+    displayName : ?Text;
+    bio : ?Text;
+    avatar : ?Text;
+    location : ?Text;
+    website : ?Text;
+    socialLinks: {
             twitter: ?Text;
             github: ?Text;
             linkedin: ?Text;

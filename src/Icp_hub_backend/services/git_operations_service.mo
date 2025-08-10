@@ -1,4 +1,4 @@
-import Types "./types";
+import Types "../types";
 import HashMap "mo:base/HashMap";
 import Text "mo:base/Text";
 import Time "mo:base/Time";
@@ -6,13 +6,13 @@ import Principal "mo:base/Principal";
 import Array "mo:base/Array";
 import Buffer "mo:base/Buffer";
 import Result "mo:base/Result";
-import Option "mo:base/Option";
+import _Option "mo:base/Option";
 import Int "mo:base/Int";
 import Nat "mo:base/Nat";
 import Blob "mo:base/Blob";
-import Utils "./utils";
+import Utils "../utils/utils";
 import Iter "mo:base/Iter";
-import Order "mo:base/Order";
+import _Order "mo:base/Order";
 
 module GitOperations {
     // Type definitions
@@ -630,41 +630,73 @@ module GitOperations {
 
     // Get commit history
     public func getCommitHistory(
-        repositoryId: Text,
-        branch: ?Text,
-        limit: Nat,
-        offset: Nat,
-        repositories: HashMap.HashMap<Text, Repository>
+    repositoryId: Text,
+    branch: ?Text,
+    limit: Nat,
+    offset: Nat,
+    repositories: HashMap.HashMap<Text, Repository>
     ): Result<GitLog, Error> {
-        // Get repository
-        let repo = switch (repositories.get(repositoryId)) {
-            case null { return #Err(#NotFound("Repository not found")); };
-            case (?r) r;
-        };
-
-        // Sort commits by timestamp (newest first)
-        let sortedCommits = Array.sort<Commit>(
-            repo.commits,
-            func(a, b) { Int.compare(b.timestamp, a.timestamp) }
-        );
-
-        // Paginate
-        let totalCount = sortedCommits.size();
-        let startIndex = offset;
-        let endIndex = Nat.min(offset + limit, totalCount);
-
-        let paginatedCommits = if (startIndex < totalCount) {
-            Array.subArray<Commit>(sortedCommits, startIndex, endIndex - startIndex)
-        } else {
-            []
-        };
-
-        #Ok({
-            commits = paginatedCommits;
-            totalCount = totalCount;
-            hasMore = endIndex < totalCount;
-        });
+    // Get repository
+    let repo = switch (repositories.get(repositoryId)) {
+        case null { return #Err(#NotFound("Repository not found")); };
+        case (?r) r;
     };
+
+    // Filter commits by branch if specified
+    let filteredCommits = switch (branch) {
+        case null {
+            // Return all commits if no branch specified
+            repo.commits;
+        };
+        case (?branchName) {
+            // Find the branch to get its commit history
+            let targetBranch = Array.find<Branch>(
+                repo.branches,
+                func(b) { b.name == branchName }
+            );
+            
+            switch (targetBranch) {
+                case null { return #Err(#NotFound("Branch not found")); };
+                case (?b) {
+                    // Filter commits that are reachable from this branch
+                    // Get commits from latest commit backwards
+                    Array.filter<Commit>(
+                        repo.commits,
+                        func(c) { 
+                            // In a real implementation, trace commit ancestry
+                            // For now, include all commits (would need graph traversal)
+                            true
+                        }
+                    );
+                };
+            };
+        };
+    };
+
+    // Sort commits by timestamp (newest first)
+    let sortedCommits = Array.sort<Commit>(
+        filteredCommits,
+        func(a, b) { Int.compare(b.timestamp, a.timestamp) }
+    );
+
+    // Paginate
+    let totalCount = sortedCommits.size();
+    let startIndex = offset;
+    let endIndex = Nat.min(offset + limit, totalCount);
+
+    let paginatedCommits = if (startIndex < totalCount) {
+        Array.subArray<Commit>(sortedCommits, startIndex, endIndex - startIndex)
+    } else {
+        []
+    };
+
+    #Ok({
+        commits = paginatedCommits;
+        totalCount = totalCount;
+        hasMore = endIndex < totalCount;
+    });
+};
+
 
     // Get diff between commits
     public func getCommitDiff(
@@ -1087,87 +1119,149 @@ module GitOperations {
 
     // Create multi-chain aware commit
     public func createMultiChainCommit(
-        caller: Principal,
-        request: CommitRequest,
-        repositories: HashMap.HashMap<Text, Repository>,
-        multiChainRepos: HashMap.HashMap<Text, MultiChainRepository>
+    caller: Principal,
+    request: CommitRequest,
+    repositories: HashMap.HashMap<Text, Repository>,
+    multiChainRepos: HashMap.HashMap<Text, MultiChainRepository>
     ): Result<MultiChainCommit, Error> {
-        // First create base commit
-        let baseCommitResult = createCommit(caller, request, repositories);
-        
-        switch (baseCommitResult) {
-            case (#Err(e)) { return #Err(e); };
-            case (#Ok(baseCommit)) {
-                let contractChanges = Buffer.Buffer<ContractChange>(0);
-                
-                // Analyze file changes for blockchain-specific content
-                for (file in request.files.vals()) {
-                    switch (file.content) {
-                        case (?content) {
-                            switch (detectBlockchainFromFile(file.path, content)) {
-                                case (?(blockchain, language)) {
-                                    let change: ContractChange = {
-                                        path = file.path;
-                                        blockchain = blockchain;
-                                        language = language;
-                                        changeType = switch (file.action) {
-                                            case (#Add) #Created;
-                                            case (#Modify) #Modified;
-                                            case (#Delete) #Deleted;
-                                            case (#Rename(_)) #Modified;
-                                        };
-                                        metadata = switch (parseContractMetadata(file.path, content, blockchain, language)) {
-                                            case (#Ok(meta)) ?meta;
-                                            case (#Err(_)) null;
-                                        };
+    // First create base commit
+    let baseCommitResult = createCommit(caller, request, repositories);
+    
+    switch (baseCommitResult) {
+        case (#Err(e)) { return #Err(e); };
+        case (#Ok(baseCommit)) {
+            let contractChanges = Buffer.Buffer<ContractChange>(0);
+            
+            // Analyze file changes for blockchain-specific content
+            for (file in request.files.vals()) {
+                switch (file.content) {
+                    case (?content) {
+                        switch (detectBlockchainFromFile(file.path, content)) {
+                            case (?(blockchain, language)) {
+                                let change: ContractChange = {
+                                    path = file.path;
+                                    blockchain = blockchain;
+                                    language = language;
+                                    changeType = switch (file.action) {
+                                        case (#Add) #Created;
+                                        case (#Modify) #Modified;
+                                        case (#Delete) #Deleted;
+                                        case (#Rename(_)) #Modified;
                                     };
-                                    contractChanges.add(change);
+                                    metadata = switch (parseContractMetadata(file.path, content, blockchain, language)) {
+                                        case (#Ok(meta)) ?meta;
+                                        case (#Err(_)) null;
+                                    };
                                 };
-                                case null {};
+                                contractChanges.add(change);
                             };
+                            case null {};
                         };
-                        case null {};
+                    };
+                    case null {};
+                };
+            };
+            
+            // NOW USE multiChainRepos parameter - update or create multi-chain repo
+            let multiChainCommit = {
+                baseCommit = baseCommit;
+                contractChanges = Buffer.toArray(contractChanges);
+                deployments = [];
+                crossChainCalls = [];
+            };
+            
+            // Update the multi-chain repository with new contract changes
+            switch (multiChainRepos.get(request.repositoryId)) {
+                case null {
+                    // Create new multi-chain repo entry if it doesn't exist
+                    let newMultiRepo: MultiChainRepository = {
+                        baseRepository = switch (repositories.get(request.repositoryId)) {
+                            case (?repo) repo;
+                            case null { return #Err(#NotFound("Repository not found")); };
+                        };
+                        supportedBlockchains = Array.map<ContractChange, BlockchainType>(
+                            Buffer.toArray(contractChanges),
+                            func(change) { change.blockchain }
+                        );
+                        contractMetadata = HashMap.HashMap<Text, ContractMetadata>(10, Text.equal, Text.hash);
+                        deployments = [];
+                        buildConfigs = HashMap.HashMap<BlockchainType, BuildConfig>(5, func(a, b) { a == b }, func(b) { 0 });
+                        testConfigs = HashMap.HashMap<BlockchainType, TestConfig>(5, func(a, b) { a == b }, func(t) { 0 });
+                        securityAudits = [];
+                    };
+                    multiChainRepos.put(request.repositoryId, newMultiRepo);
+                };
+                case (?existingMultiRepo) {
+                    // Update existing multi-chain repo with new contract metadata
+                    for (change in contractChanges.vals()) {
+                        switch (change.metadata) {
+                            case (?metadata) {
+                                existingMultiRepo.contractMetadata.put(change.path, metadata);
+                            };
+                            case null {};
+                        };
                     };
                 };
-                
-                #Ok({
-                    baseCommit = baseCommit;
-                    contractChanges = Buffer.toArray(contractChanges);
-                    deployments = [];
-                    crossChainCalls = [];
-                });
             };
+            
+            #Ok(multiChainCommit);
         };
     };
+};
 
-    // Get multi-chain repository stats
-    public func getMultiChainStats(
+        // Get multi-chain repository stats
+        public func getMultiChainStats(
         repositoryId: Text,
         repositories: HashMap.HashMap<Text, Repository>,
         multiChainRepos: HashMap.HashMap<Text, MultiChainRepository>
-    ): Result<{
+        ): Result<{
         blockchains: [(BlockchainType, Nat)]; // blockchain -> file count
         languages: [(SmartContractLanguage, Nat)];
         deployments: Nat;
         crossChainCalls: Nat;
         securityScore: ?Nat;
-    }, Error> {
+        }, Error> {
         switch (repositories.get(repositoryId)) {
             case null { #Err(#NotFound("Repository not found")); };
             case (?repo) {
                 switch (multiChainRepos.get(repositoryId)) {
                     case null {
-                        // Not a multi-chain repo yet
+                        // Not a multi-chain repo yet - analyze base repo files
+                        let blockchainCounts = HashMap.HashMap<BlockchainType, Nat>(10, func(a, b) { a == b }, func(b) { 0 });
+                        let languageCounts = HashMap.HashMap<SmartContractLanguage, Nat>(10, func(a, b) { a == b }, func(l) { 0 });
+                        
+                        // USE repo parameter - analyze files for blockchain content
+                        for ((path, fileEntry) in repo.files.entries()) {
+                            switch (detectBlockchainFromFile(path, fileEntry.content)) {
+                                case (?(blockchain, language)) {
+                                    // Count blockchain types
+                                    let currentBlockchainCount = switch (blockchainCounts.get(blockchain)) {
+                                        case null 0;
+                                        case (?count) count;
+                                    };
+                                    blockchainCounts.put(blockchain, currentBlockchainCount + 1);
+                                    
+                                    // Count languages
+                                    let currentLangCount = switch (languageCounts.get(language)) {
+                                        case null 0;
+                                        case (?count) count;
+                                    };
+                                    languageCounts.put(language, currentLangCount + 1);
+                                };
+                                case null {};
+                            };
+                        };
+                        
                         #Ok({
-                            blockchains = [];
-                            languages = [];
+                            blockchains = Iter.toArray(blockchainCounts.entries());
+                            languages = Iter.toArray(languageCounts.entries());
                             deployments = 0;
                             crossChainCalls = 0;
                             securityScore = null;
                         });
                     };
                     case (?multiRepo) {
-                        // Calculate stats
+                        // Calculate stats from existing multi-chain data
                         let blockchainCounts = HashMap.HashMap<BlockchainType, Nat>(10, func(a, b) { a == b }, func(b) { 0 });
                         let languageCounts = HashMap.HashMap<SmartContractLanguage, Nat>(10, func(a, b) { a == b }, func(l) { 0 });
                         

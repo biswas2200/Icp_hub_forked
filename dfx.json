@@ -2,7 +2,9 @@
   "canisters": {
     "Icp_hub_backend": {
       "main": "src/Icp_hub_backend/main.mo",
-      "type": "motoko"
+      "type": "motoko",
+      "dependencies": [],
+      "packtool": "mops sources"
     },
     "icp-hub-frontend": {
       "dependencies": [
@@ -16,6 +18,16 @@
       ],
       "type": "assets",
       "build": "cd src/icp-hub-frontend && npm run build"
+    },
+    "internet_identity": {
+      "type": "custom",
+      "candid": "https://raw.githubusercontent.com/dfinity/internet-identity/main/src/internet_identity/internet_identity.did",
+      "wasm": "https://github.com/dfinity/internet-identity/releases/latest/download/internet_identity_dev.wasm.gz",
+      "remote": {
+        "id": {
+          "localhost": "lqy7q-dh777-77777-aaaaq-cai"
+        }
+      }
     }
   },
   "networks": {
@@ -31,5 +43,10 @@
     }
   },
   "output_env_file": ".env",
-  "version": 1
+  "version": 1,
+  "defaults": {
+    "build": {
+      "packtool": "mops sources"
+    }
+  }
 }

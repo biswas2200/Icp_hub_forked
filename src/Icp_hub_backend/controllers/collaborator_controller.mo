@@ -1,4 +1,4 @@
-import Types "./types";
+import Types "../types";
 import HashMap "mo:base/HashMap";
 import Text "mo:base/Text";
 import Time "mo:base/Time";
@@ -6,8 +6,8 @@ import Principal "mo:base/Principal";
 import Result "mo:base/Result";
 import Array "mo:base/Array";
 import Buffer "mo:base/Buffer";
-import Utils "./utils";
-import Option "mo:base/Option";
+import Utils "../utils/utils";
+import _Option "mo:base/Option";
 
 module CollaboratorManager {
     

@@ -9,22 +9,28 @@ import Iter "mo:base/Iter";
 import Debug "mo:base/Debug";
 import Nat "mo:base/Nat";
 import Buffer "mo:base/Buffer";
-import Utils "./utils";
+import Utils "./utils/utils";
 import Option "mo:base/Option";
-import Order "mo:base/Order";
+import _Order "mo:base/Order";
 import Int "mo:base/Int";
 import Float "mo:base/Float";
-import Timer "mo:base/Timer";
-import Prim "mo:prim";
-import CollaboratorManager "./collaborator";
-import Governance "./governance";
-import Auth "./auth";
-import GitOps "./git_operations";
-import ChainFusion "./chain_fusion";
-import Incentives "./incentives";
-import Storage "./storage";
+import _Timer "mo:base/Timer";
+import _Prim "mo:prim";
+import State "./models/state_model";
+import User "./controllers/user_controller";
+import Repository "./controllers/repository_controller";
+import Search "./controllers/search_controller";
+import CollaboratorManager "./controllers/collaborator_controller";
+import Governance "./controllers/governance_controller";
+import Auth "./controllers/auth_controller";
+import GitOps "./services/git_operations_service";
+import ChainFusion "./services/chain_fusion_service";
+import Incentives "./services/incentives_service";
+import Storage "./services/storage_service";
+import Config "./config/app_config";
 
-actor ICPHub {
+persistent actor ICPHub {
+  // Type aliases for cleaner code
   type User = Types.User;
   type Repository = Types.Repository;
   type FileEntry = Types.FileEntry;
@@ -38,8 +44,12 @@ actor ICPHub {
   type RepositoryListResponse = Types.RepositoryListResponse;
   type FileListResponse = Types.FileListResponse;
   type PaginationParams = Types.PaginationParams;
+  type UpdateUserProfileRequest = Types.UpdateUserProfileRequest;
+  type SerializableRepository = Types.SerializableRepository;
+  type SerializableSearchResults = Types.SerializableSearchResults;
+  type DeploymentRecord = Types.DeploymentRecord;
 
-  //collaborator types
+  // Collaborator types
   type AddCollaboratorRequest = CollaboratorManager.AddCollaboratorRequest;
   type UpdateCollaboratorRequest = CollaboratorManager.UpdateCollaboratorRequest;
   type RemoveCollaboratorRequest = CollaboratorManager.RemoveCollaboratorRequest;
@@ -47,7 +57,7 @@ actor ICPHub {
   type CollaboratorInfo = CollaboratorManager.CollaboratorInfo;
   type CollaboratorListResponse = CollaboratorManager.CollaboratorListResponse;
 
-  //governance types
+  // Governance types
   type ProposalId = Governance.ProposalId;
   type VotingPower = Governance.VotingPower;
   type ProposalStatus = Governance.ProposalStatus;
@@ -65,7 +75,7 @@ actor ICPHub {
   type AddDiscussionPostRequest = Governance.AddDiscussionPostRequest;
   type DiscussionPost = Governance.DiscussionPost;
 
-  //auth types
+  // Auth types
   type SessionToken = Auth.SessionToken;
   type ApiKey = Auth.ApiKey;
   type ApiPermission = Auth.ApiPermission;
@@ -73,7 +83,7 @@ actor ICPHub {
   type AuthContext = Auth.AuthContext;
   type Permission = Auth.Permission;
 
-  //git opertations types
+  // Git operations types
   type CommitRequest = GitOps.CommitRequest;
   type FileAction = GitOps.FileAction;
   type DiffResult = GitOps.DiffResult;
@@ -87,6 +97,7 @@ actor ICPHub {
   type CloneRequest = GitOps.CloneRequest;
   type GitStatus = GitOps.GitStatus;
 
+  // Chain types
   type ChainType = Types.ChainType;
   type DeploymentConfig = Types.DeploymentConfig;
   type ChainConfig = Types.ChainConfig;
@@ -114,7 +125,7 @@ actor ICPHub {
   type Treasury = Incentives.Treasury;
   type ContributionMetrics = Incentives.ContributionMetrics;
 
-  //storage types
+  // Storage types
   type StorageProvider = Storage.StorageProvider;
   type StorageLocation = Storage.StorageLocation;
   type FileMetadata = Storage.FileMetadata;
@@ -125,128 +136,57 @@ actor ICPHub {
   type PinningService = Storage.PinningService;
   type PinStatus = Storage.PinStatus;
 
-  type SearchScope = {
-    #All;
-    #Repositories;
-    #Users;
-    #Files;
-    #Code;
+  // Search types
+  type SearchScope = Types.SearchScope;
+  type SearchSortBy = Types.SortBy;
+  type SearchFilter = Types.SearchFilter;
+  type SearchRequest = Types.SearchRequest;
+  type RepositorySearchResult = Types.RepositorySearchResult;
+  type UserSearchResult = Types.UserSearchResult;
+  type FileSearchResult = Types.FileSearchResult;
+  type SearchResults = Types.SearchResults;
+  type CombinedSearchResults = Types.CombinedSearchResults;
+
+  // Upload options
+  public type UploadOptions = {
+    useIPFS: Bool;
+    autoDeploy: Bool;
+    encrypt: Bool;
+    compress: Bool;
+    providers: [Storage.StorageProvider];
   };
 
-  type SearchSortBy = {
-    #Relevance;
-    #Name;
-    #CreatedAt;
-    #UpdatedAt;
-    #Stars;
-    #Size;
-  };
+  // CORE MANAGERS
+  private transient let stateManager = State.StateManager();
+  private transient let userManager = User.UserManager(stateManager);
+  private transient let repositoryManager = Repository.RepositoryManager(stateManager);
+  private transient let searchManager = Search.SearchManager(stateManager, userManager, repositoryManager);
 
-  type SearchFilter = {
-    owner : ?Principal;
-    language : ?Text;
-    isPrivate : ?Bool;
-    hasFiles : ?Bool;
-    minSize : ?Nat;
-    maxSize : ?Nat;
-    createdAfter : ?Int;
-    createdBefore : ?Int;
-  };
-
-  type SearchRequest = {
-    searchQuery : Text;
-    scope : SearchScope;
-    filters : ?SearchFilter;
-    sortBy : ?SearchSortBy;
-    pagination : ?Types.PaginationParams;
-  };
-
-  type RepositorySearchResult = {
-    repository : Types.Repository;
-    score : Float;
-    matchedFields : [Text];
-  };
-
-  type UserSearchResult = {
-    user : Types.User;
-    score : Float;
-    matchedFields : [Text];
-  };
-
-  type FileSearchResult = {
-    file : Types.FileEntry;
-    repository : Types.Repository;
-    score : Float;
-    matchedFields : [Text];
-    snippets : [Text];
-  };
-
-  type SearchResults = {
-    repositories : [RepositorySearchResult];
-    users : [UserSearchResult];
-    files : [FileSearchResult];
-    totalCount : Nat;
-    hasMore : Bool;
-    searchQuery : Text;
-    scope : SearchScope;
-  };
-
-  type CombinedSearchResults = {
-    repoResults : [RepositorySearchResult];
-    userResults : [UserSearchResult];
-    fileResults : [FileSearchResult];
-  };
-
-  type UpdateUserProfileRequest = {
-    displayName : ?Text;
-    bio : ?Text;
-    avatar : ?Text;
-    location : ?Text;
-    website : ?Text;
-  };
-
-  type SerializableRepository = Types.SerializableRepository;
-  type SerializableSearchResults = Types.SerializableSearchResults;
-  type DeploymentRecord = Types.DeploymentRecord;
-
-  //private let authModule = Auth.AuthManager();
-  //private let collaboratorManager = CollaboratorManager.CollaboratorManager();
-  //private let governance = Governance.GovernanceSystem();
-  //private let gitOps = GitOps.GitOperations();
-  private let incentiveSystem = Incentives.IncentiveSystem();
-  private let ipfsConfig: IPFSConfig = {
-        apiUrl = "https://ipfs.infura.io:5001";
-        gateway = "https://ipfs.io";
-        projectId = "YOUR_INFURA_PROJECT_ID"; // Replace with actual
-        projectSecret = "YOUR_INFURA_PROJECT_SECRET"; // Replace with actual
-        dedicatedGateway = null;
-    };
+  // SUPPORTING MANAGERS
+  private transient let incentiveSystem = Incentives.IncentiveSystem();
+  private transient let ipfsConfig = Config.ipfsConfig;
+  private transient var storageManager = Storage.StorageManager(ipfsConfig);
+  private transient var governanceState = Governance.GovernanceState();
+  private transient var sessionManager = Auth.SessionManager();
+  private transient var apiKeyManager = Auth.ApiKeyManager();
 
   // Stable variables for upgrade persistence
-  private stable var usernamesEntries : [(Text, Principal)] = [];
-  private stable var usersEntries : [(Principal, User)] = [];
-  private stable var repositoriesEntries : [(Text, SerializableRepository)] = [];
-  private stable var nextRepositoryId : Nat = 1;
-  private stable var deploymentsEntries : [(Text, [DeploymentRecord])] = [];
+  private var usernamesEntries : [(Text, Principal)] = [];
+  private var usersEntries : [(Principal, User)] = [];
+  private var repositoriesEntries : [(Text, SerializableRepository)] = [];
+  private var nextRepositoryId : Nat = 1;
+  private var deploymentsEntries : [(Text, [DeploymentRecord])] = [];
 
-  // In-memory storage
-  private var users = HashMap.HashMap<Principal, User>(10, Principal.equal, Principal.hash);
-  private var repositories = HashMap.HashMap<Text, Repository>(10, Text.equal, Text.hash);
-  private var usernames = HashMap.HashMap<Text, Principal>(10, Text.equal, Text.hash);
+  // In-memory deployments storage (could be moved to state manager in future)
+  private transient var deployments = HashMap.HashMap<Text, [Types.DeploymentRecord]>(10, Text.equal, Text.hash);
 
-  private stable var storageManagerData: ?{
+  private var storageManagerData: ?{
         fileMetadata: [(Text, FileMetadata)];
         stats: StorageStats;
         pinningServices: [(PinningService, Text)];
     } = null;
 
-  private var storageManager = Storage.StorageManager(ipfsConfig);
-  //private var searchEngine = Search.SearchEngine();
-
-  //governance state
-  //private stable var governanceTimerId: ?Nat = null;//need to implement
-
-  private stable var governanceStateData : ?{
+  private var governanceStateData : ?{
     proposals : [(ProposalId, Proposal)];
     governanceTokens : [(Principal, GovernanceToken)];
     config : GovernanceConfig;
@@ -254,15 +194,13 @@ actor ICPHub {
     nextProposalId : ProposalId;
   } = null;
 
-  private var governanceState = Governance.GovernanceState();
-
-  private stable var sessionManagerData : ?[(Text, SessionToken)] = null;
-  private stable var apiKeyManagerData : ?{
+  private var sessionManagerData : ?[(Text, SessionToken)] = null;
+  private var apiKeyManagerData : ?{
     apiKeys : [(Text, ApiKey)];
     keysByPrincipal : [(Principal, [Text])];
   } = null;
 
-  private stable var stableIncentiveData : ?{
+  private var stableIncentiveData : ?{
     token : Token;
     balances : [(Principal, TokenAmount)];
     rewards : [(Text, Reward)];
@@ -273,47 +211,43 @@ actor ICPHub {
     treasury : Treasury;
   } = null;
 
-  private var sessionManager = Auth.SessionManager();
-  private var apiKeyManager = Auth.ApiKeyManager();
-
-  private var deployments = HashMap.HashMap<Text, [Types.DeploymentRecord]>(10, Text.equal, Text.hash);
-
-  private let ADMIN_PRINCIPALS = [
+  private transient let ADMIN_PRINCIPALS = [
     "rdmx6-jaaaa-aaaah-qcaiq-cai", // Replace with actual admin principal
   ];
 
   // System functions for upgrades
   system func preupgrade() {
-    usersEntries := Iter.toArray(users.entries());
-    repositoriesEntries := Array.map<(Text, Repository), (Text, SerializableRepository)>(
-      Iter.toArray(repositories.entries()),
-      func((id, repo)) { (id, Types.repositoryToSerializable(repo)) },
-    );
-    usernamesEntries := Iter.toArray(usernames.entries());
+    // Get stable data from state manager
+    let stableState = stateManager.prepareForUpgrade();
+    usersEntries := stableState.usersEntries;
+    repositoriesEntries := stableState.repositoriesEntries;
+    usernamesEntries := stableState.usernamesEntries;
+    nextRepositoryId := stableState.nextRepoId;
+    
+    // Prepare other modules for upgrade
     governanceStateData := ?governanceState.preupgrade();
-
     sessionManagerData := ?sessionManager.getAllSessions();
     apiKeyManagerData := ?apiKeyManager.getUpgradeData();
     deploymentsEntries := Iter.toArray(deployments.entries());
-
     stableIncentiveData := ?incentiveSystem.preupgrade();
     storageManagerData := ?storageManager.preupgrade();
   };
 
   system func postupgrade() {
-    users := HashMap.fromIter<Principal, User>(
-      usersEntries.vals(),
-      usersEntries.size(),
-      Principal.equal,
-      Principal.hash,
+    // Restore state manager from stable storage
+    stateManager.restoreFromUpgrade(
+      usersEntries,
+      repositoriesEntries,
+      usernamesEntries,
+      nextRepositoryId
     );
 
-    repositories := HashMap.HashMap<Text, Repository>(
-      repositoriesEntries.size(),
-      Text.equal,
-      Text.hash,
-    );
-
+    // Clear stable storage
+    usersEntries := [];
+    repositoriesEntries := [];
+    usernamesEntries := [];
+    
+    // Restore deployments
     deployments := HashMap.fromIter<Text, [DeploymentRecord]>(
       deploymentsEntries.vals(),
       deploymentsEntries.size(),
@@ -321,20 +255,8 @@ actor ICPHub {
       Text.hash,
     );
     deploymentsEntries := [];
-    for ((id, serRepo) in repositoriesEntries.vals()) {
-      repositories.put(id, Types.serializableToRepository(serRepo));
-    };
 
-    usernames := HashMap.fromIter<Text, Principal>(
-      usernamesEntries.vals(),
-      usernamesEntries.size(),
-      Text.equal,
-      Text.hash,
-    );
-    usernamesEntries := [];
-
-    usersEntries := [];
-    repositoriesEntries := [];
+    // Restore other modules
     switch (governanceStateData) {
       case null {};
       case (?data) {
@@ -342,6 +264,7 @@ actor ICPHub {
         governanceStateData := null;
       };
     };
+    
     switch (sessionManagerData) {
       case (?data) {
         sessionManager.restoreSessions(data);
@@ -349,6 +272,7 @@ actor ICPHub {
       };
       case null {};
     };
+    
     switch (apiKeyManagerData) {
       case (?data) {
         apiKeyManager.restoreData(data);
@@ -357,70 +281,28 @@ actor ICPHub {
       case null {};
     };
 
-     switch (storageManagerData) {
-            case (?data) {
-                storageManager.postupgrade(data);
-                storageManagerData := null;
-            };
-            case null {};
-        };
-         switch (stableIncentiveData) {
-            case (?data) {
-                incentiveSystem.postupgrade(data);
-                stableIncentiveData := null;
-            };
-            case null {
-                incentiveSystem.init();
-            };
-        };
-  };
-
-  public type UploadOptions = {
-    useIPFS: Bool;
-    autoDeploy: Bool;
-    encrypt: Bool;
-    compress: Bool;
-    providers: [Storage.StorageProvider];
-};
-
-
-  // Helper functions
-  private func generateRepositoryId() : Text {
-    let id = "repo_" # Nat.toText(nextRepositoryId);
-    nextRepositoryId += 1;
-    id;
-  };
-
-  private func intToNat(i : Int) : Nat {
-    if (i < 0) { Prim.trap("Cannot convert negative Int to Nat") };
-
-    // Manually construct the Nat value to bypass the compiler issue.
-    var n : Nat = 0;
-    var counter : Int = 0;
-    while (counter < i) {
-      n += 1;
-      counter += 1;
+    switch (storageManagerData) {
+      case (?data) {
+        storageManager.postupgrade(data);
+        storageManagerData := null;
+      };
+      case null {};
     };
-    return n;
-  };
-
-  private func canWrite(caller : Principal, repositoryId : Text) : Bool {
-    switch (repositories.get(repositoryId)) {
-      case null false;
-      case (?repo) {
-        if (repo.owner == caller) return true;
-        // Check collaborators with write permission
-        switch (repo.collaborators.get(caller)) {
-          case null false;
-          case (?collab) {
-            switch (collab.permission) {
-              case (#Write or #Admin) true;
-              case _ false;
-            };
-          };
-        };
+    
+    switch (stableIncentiveData) {
+      case (?data) {
+        incentiveSystem.postupgrade(data);
+        stableIncentiveData := null;
+      };
+      case null {
+        incentiveSystem.init();
       };
     };
+  };
+
+  // Helper functions
+  private func isAdmin(caller : Principal) : Bool {
+    Array.find<Text>(ADMIN_PRINCIPALS, func(p) { p == Principal.toText(caller) }) != null;
   };
 
   private func addDeploymentRecord(repositoryId : Text, deployment : DeploymentRecord) {
@@ -435,1132 +317,124 @@ actor ICPHub {
     };
   };
 
-  // Helper function to calculate search relevance score
-  private func calculateRelevanceScore(searchQuery : Text, text : Text, fieldWeight : Float) : Float {
-    let lowerQuery = Utils.toLower(searchQuery);
-    let lowerText = Utils.toLower(text);
+  // USER MANAGEMENT APIs
 
-    if (lowerText == lowerQuery) {
-      return 100.0 * fieldWeight; // Exact match
-    };
-
-    if (Text.startsWith(lowerText, #text lowerQuery)) {
-      return 80.0 * fieldWeight; // Starts with query
-    };
-
-    if (Utils.containsSubstring(lowerText, lowerQuery)) {
-      return 60.0 * fieldWeight; // Contains query
-    };
-
-    // Check for partial word matches
-    let queryWords = Text.split(lowerQuery, #char ' ');
-    var partialScore : Float = 0.0;
-
-    for (word in queryWords) {
-      if (Utils.containsSubstring(lowerText, word)) {
-        partialScore += 20.0;
-      };
-    };
-
-    return partialScore * fieldWeight;
-  };
-
-  // Search repositories
-  private func searchRepositories(
-    searchQuery : Text,
-    caller : Principal,
-    filters : ?SearchFilter,
-  ) : [RepositorySearchResult] {
-    let results = Buffer.Buffer<RepositorySearchResult>(0);
-
-    label repo_loop for ((_, repo) in repositories.entries()) {
-      if (not Utils.canReadRepository(caller, repo)) {
-        continue repo_loop;
-      };
-
-      // Filtering Logic
-      let passesFilter = switch (filters) {
-        case null true;
-        case (?f) {
-          let ownerMatch = switch (f.owner) {
-            case null true;
-            case (?owner) repo.owner == owner;
-          };
-
-          let languageMatch = switch (f.language) {
-            case null true;
-            case (?lang) {
-              switch (repo.language) {
-                case null false;
-                case (?repoLang) Utils.toLower(repoLang) == Utils.toLower(lang);
-              };
-            };
-          };
-
-          let privateMatch = switch (f.isPrivate) {
-            case null true;
-            case (?isPrivate) repo.isPrivate == isPrivate;
-          };
-
-          let sizeMatch = switch (f.minSize, f.maxSize) {
-            case (null, null) true;
-            case (?minSize, null) repo.size >= minSize;
-            case (null, ?maxSize) repo.size <= maxSize;
-            case (?minSize, ?maxSize) repo.size >= minSize and repo.size <= maxSize;
-          };
-
-          let dateMatch = switch (f.createdAfter, f.createdBefore) {
-            case (null, null) true;
-            case (?after, null) repo.createdAt >= after;
-            case (null, ?before) repo.createdAt <= before;
-            case (?after, ?before) repo.createdAt >= after and repo.createdAt <= before;
-          };
-
-          ownerMatch and languageMatch and privateMatch and sizeMatch and dateMatch;
-        };
-      };
-
-      if (not passesFilter) {
-        continue repo_loop;
-      };
-
-      // Relevance Scoring
-      let totalScore = do {
-        var score = 0.0;
-        let matchedFields = Buffer.Buffer<Text>(0);
-
-        let nameScore = calculateRelevanceScore(searchQuery, repo.name, 3.0);
-        if (nameScore > 0) {
-          score += nameScore;
-          matchedFields.add("name");
-        };
-
-        switch (repo.description) {
-          case null {};
-          case (?desc) {
-            let descScore = calculateRelevanceScore(searchQuery, desc, 2.0);
-            if (descScore > 0) {
-              score += descScore;
-              matchedFields.add("description");
-            };
-          };
-        };
-
-        for (topic in repo.settings.topics.vals()) {
-          let topicScore = calculateRelevanceScore(searchQuery, topic, 1.0);
-          if (topicScore > 0) {
-            score += topicScore;
-            if (not Utils.arrayContains(Buffer.toArray(matchedFields), "topics", Text.equal)) {
-              matchedFields.add("topics");
-            };
-          };
-        };
-
-        // Popularity Boost
-        let popularityBoost = Float.fromInt(repo.stars) * 0.1 + Float.fromInt(repo.forks) * 0.05;
-        score += popularityBoost;
-
-        // Result Aggregation
-        if (score > 0) {
-          results.add({
-            repository = repo;
-            score = score;
-            matchedFields = Buffer.toArray(matchedFields);
-          });
-        };
-        score;
-      };
-    };
-
-    // Sorting
-    let resultArray = Buffer.toArray(results);
-    let sortedResults = Array.sort<RepositorySearchResult>(
-      resultArray,
-      func(a, b) {
-        if (a.score < b.score) { #greater } else if (a.score > b.score) {
-          #less;
-        } else { #equal };
-      },
-    );
-    sortedResults;
-  };
-
-  // Search files and code
-  private func searchFiles(searchQuery : Text, caller : Principal, codeOnly : Bool) : [FileSearchResult] {
-    let results = Buffer.Buffer<FileSearchResult>(0);
-
-    label repo_loop for ((_, repo) in repositories.entries()) {
-      // Authorization Check
-      if (not Utils.canReadRepository(caller, repo)) {
-        continue repo_loop;
-      };
-
-      label file_loop for ((path, file) in repo.files.entries()) {
-        // Code-Only Filter
-        if (codeOnly and not Utils.isCodeFile(file.path)) {
-          continue file_loop;
-        };
-
-        var totalScore = 0.0;
-        let matchedFields = Buffer.Buffer<Text>(0);
-        let snippets = Buffer.Buffer<Text>(0);
-
-        // Score File Path
-        let pathScore = calculateRelevanceScore(searchQuery, file.path, 2.0);
-        if (pathScore > 0) {
-          totalScore += pathScore;
-          matchedFields.add("path");
-        };
-
-        // Score File Content
-        let contentWeight = if (codeOnly) 3.0 else 1.5;
-
-        switch (Text.decodeUtf8(file.content)) {
-          case null {
-            /* File is not text-based (e.g., an image), so we can't search its content. */
-          };
-          case (?contentText) {
-            let contentScore = calculateRelevanceScore(searchQuery, contentText, contentWeight);
-            if (contentScore > 0) {
-              totalScore += contentScore;
-              matchedFields.add("content");
-
-              // Create a Snippet
-              let snippet = if (Text.size(contentText) > 150) {
-                Utils.textTake(contentText, 150) # "...";
-              } else {
-                contentText;
-              };
-              snippets.add(snippet);
-            };
-          };
-        };
-
-        // Result Aggregation
-        if (totalScore > 0) {
-          results.add({
-            file = file;
-            repository = repo;
-            score = totalScore;
-            matchedFields = Buffer.toArray(matchedFields);
-            snippets = Buffer.toArray(snippets);
-          });
-        };
-      };
-    };
-
-    // Sorting
-    let sortedResults = Buffer.toArray(results);
-    return Array.sort<FileSearchResult>(
-      sortedResults,
-      func(a, b) {
-        if (a.score < b.score) { #greater } else if (a.score > b.score) {
-          #less;
-        } else { #equal };
-      },
-    );
-  };
-
-  // Main search function api
-  private func searchUsers(
-    searchQuery : Text,
-    caller : Principal,
-  ) : [UserSearchResult] {
-    let results = Buffer.Buffer<UserSearchResult>(0);
-
-    for ((_, user) in users.entries()) {
-      var totalScore : Float = 0.0;
-      let matchedFields = Buffer.Buffer<Text>(0);
-
-      let usernameScore = calculateRelevanceScore(searchQuery, user.username, 2.5);
-      if (usernameScore > 0) {
-        totalScore += usernameScore;
-        matchedFields.add("username");
-      };
-
-      switch (user.profile.displayName) {
-        case null {};
-        case (?displayName) {
-          let displayScore = calculateRelevanceScore(searchQuery, displayName, 1.5);
-          if (displayScore > 0) {
-            totalScore += displayScore;
-            matchedFields.add("displayName");
-          };
-        };
-      };
-
-      if (totalScore > 0) {
-        results.add({
-          user = user;
-          score = totalScore;
-          matchedFields = Buffer.toArray(matchedFields);
-        });
-      };
-    };
-
-    let sortedResults = Buffer.toArray(results);
-    let sorted = Array.sort<UserSearchResult>(
-      sortedResults,
-      func(a, b) {
-        if (a.score < b.score) { #greater } else if (a.score > b.score) {
-          #less;
-        } else { #equal };
-      },
-    );
-    return sorted;
-  };
-
-  private func isAdmin(caller : Principal) : Bool {
-    Array.find<Text>(ADMIN_PRINCIPALS, func(p) { p == Principal.toText(caller) }) != null;
-  };
-
-  // Main search API
-  public shared ({ caller }) func search(request : SearchRequest) : async Result<SerializableSearchResults, Error> {
-    let principal = caller;
-
-    // Validate search query
-    let searchQuery = Text.trim(request.searchQuery, #char ' ');
-    if (Text.size(searchQuery) == 0) {
-      return #Err(#BadRequest("Search query cannot be empty"));
-    };
-
-    if (Text.size(searchQuery) > 100) {
-      return #Err(#BadRequest("Search query too long"));
-    };
-
-    let page = switch (request.pagination) {
-      case null { 0 };
-      case (?p) { p.page };
-    };
-    let limit = switch (request.pagination) {
-      case null { 10 };
-      case (?p) { Nat.min(p.limit, 100) };
-    };
-
-    let searchResults : CombinedSearchResults = switch (request.scope) {
-      case (#All) {
-        {
-          repoResults = searchRepositories(searchQuery, principal, request.filters);
-          userResults = searchUsers(searchQuery, principal);
-          fileResults = searchFiles(searchQuery, principal, false);
-        };
-      };
-      case (#Repositories) {
-        {
-          repoResults = searchRepositories(searchQuery, principal, request.filters);
-          userResults = [];
-          fileResults = [];
-        };
-      };
-      case (#Users) {
-        {
-          repoResults = [];
-          userResults = searchUsers(searchQuery, principal);
-          fileResults = [];
-        };
-      };
-      case (#Files) {
-        {
-          repoResults = [];
-          userResults = [];
-          fileResults = searchFiles(searchQuery, principal, false);
-        };
-      };
-      case (#Code) {
-        {
-          repoResults = [];
-          userResults = [];
-          fileResults = searchFiles(searchQuery, principal, true);
-        };
-      };
-    };
-
-    // Sorting and Pagination Logic
-
-    // Apply sorting if specified (only for repositories)
-    let sortedRepos = switch (request.sortBy) {
-      case null { searchResults.repoResults };
-      case (?#Relevance) { searchResults.repoResults };
-      case (?sortBy) {
-        Array.sort<RepositorySearchResult>(
-          searchResults.repoResults,
-          func(a, b) {
-            switch (sortBy) {
-              case (#Name) {
-                Text.compare(a.repository.name, b.repository.name);
-              };
-              case (#CreatedAt) {
-                Int.compare(b.repository.createdAt, a.repository.createdAt);
-              };
-              case (#UpdatedAt) {
-                Int.compare(b.repository.updatedAt, a.repository.updatedAt);
-              };
-              case (#Stars) {
-                Nat.compare(b.repository.stars, a.repository.stars);
-              };
-              case (#Size) { Nat.compare(b.repository.size, a.repository.size) };
-              case (#Relevance) { Float.compare(b.score, a.score) };
-            };
-          },
-        );
-      };
-    };
-
-    let totalCount = sortedRepos.size() + searchResults.userResults.size() + searchResults.fileResults.size();
-
-    let paginatedRepos = Utils.paginateArray<RepositorySearchResult>(sortedRepos, page, limit);
-    let paginatedUsers = Utils.paginateArray<UserSearchResult>(searchResults.userResults, page, limit);
-    let paginatedFiles = Utils.paginateArray<FileSearchResult>(searchResults.fileResults, page, limit);
-
-    let hasMore = (page + 1) * limit < totalCount;
-
-    let finalResult : SearchResults = {
-      repositories = paginatedRepos;
-      users = paginatedUsers;
-      files = paginatedFiles;
-      totalCount = totalCount;
-      hasMore = hasMore;
-      searchQuery = searchQuery;
-      scope = request.scope;
-    };
-
-    return #Ok(Types.searchResultsToSerializable(finalResult));
-  };
-
-  // Advanced search with auto-complete suggestions
-  public shared query ({ caller }) func searchSuggestions(
-    searchQuery : Text,
-    maxSuggestions : ?Nat,
-  ) : async Result<[Text], Error> {
-
-    if (Text.size(searchQuery) < 2) {
-      return #Ok([]);
-    };
-
-    let limit = switch (maxSuggestions) {
-      case null 10;
-      case (?max) Nat.min(max, 20);
-    };
-
-    let uniqueSuggestions = HashMap.HashMap<Text, ()>(limit, Text.equal, Text.hash);
-    let lowerQuery = Utils.toLower(searchQuery);
-
-    // Collect repository names
-    label repoLoop for ((_, repo) in repositories.entries()) {
-      if (uniqueSuggestions.size() == limit) { break repoLoop }; // Stop searching if we have enough
-
-      if (Utils.canReadRepository(caller, repo)) {
-        let lowerName = Utils.toLower(repo.name);
-        if (Text.startsWith(lowerName, #text lowerQuery)) {
-          uniqueSuggestions.put(repo.name, ());
-        };
-      };
-    };
-
-    // Collect usernames
-    label userLoop for ((_, user) in users.entries()) {
-      if (uniqueSuggestions.size() == limit) { break userLoop }; // Stop searching if we have enough
-
-      let lowerUsername = Utils.toLower(user.username);
-      if (Text.startsWith(lowerUsername, #text lowerQuery)) {
-        uniqueSuggestions.put(user.username, ());
-      };
-    };
-
-    // Convert the unique keys from the HashMap to an array.
-    let suggestions = Iter.toArray(uniqueSuggestions.keys());
-
-    return #Ok(suggestions);
-  };
-
-  // Search within a specific repository
-  public shared ({ caller }) func searchRepository(
-    repositoryId : Text,
-    searchQuery : Text,
-    params : ?PaginationParams,
-  ) : async Result<FileListResponse, Error> {
-
-    switch (repositories.get(repositoryId)) {
-      case null { return #Err(#NotFound("Repository not found")) };
-      case (?repo) {
-
-        // Standardized Authorization
-
-        if (not Utils.canReadRepository(caller, repo)) {
-          return #Err(#Forbidden("Access denied"));
-        };
-
-        let lowerQuery = Utils.toLower(searchQuery);
-
-        // Optimized Search and Pagination
-
-        let page = switch (params) { case null 0; case (?p) p.page };
-        let limit = switch (params) { case null 20; case (?p) p.limit };
-        let startIndex = page * limit;
-        let endIndex = startIndex + limit;
-
-        var totalMatches : Nat = 0;
-        let paginatedFiles = Buffer.Buffer<FileEntry>(limit);
-
-        // CHANGE: Use HashMap.entries() instead of Array.vals()
-        for ((path, file) in repo.files.entries()) {
-          // Check if the file's path or content matches the query
-          let isMatch = do {
-            if (Utils.containsSubstring(Utils.toLower(file.path), lowerQuery)) {
-              true;
-            } else {
-              switch (Text.decodeUtf8(file.content)) {
-                case null false;
-                case (?content) {
-                  Utils.containsSubstring(Utils.toLower(content), lowerQuery);
-                };
-              };
-            };
-          };
-
-          if (isMatch) {
-            // If it's a match
-            if (totalMatches >= startIndex and totalMatches < endIndex) {
-              paginatedFiles.add(file);
-            };
-            totalMatches += 1;
-          };
-        };
-
-        let response : FileListResponse = {
-          files = Buffer.toArray(paginatedFiles);
-          totalCount = totalMatches;
-          path = searchQuery; // Use the original query for the response path
-        };
-
-        return #Ok(response);
-      };
-    };
-  };
-
-  // User Management APIs
   public shared ({ caller }) func registerUser(
     request : RegisterUserRequest
   ) : async Result<User, Error> {
-    // if Principal is already registered
-    if (users.get(caller) != null) {
-      return #Err(#Conflict("This Principal is already registered."));
-    };
-
-    // Validate the username format
-    if (not Utils.isValidUsername(request.username)) {
-      return #Err(#BadRequest("Invalid username format. Use 3-20 alphanumeric characters, dashes, or underscores."));
-    };
-
-    // Check if the username is already taken
-    if (usernames.get(request.username) != null) {
-      return #Err(#Conflict("Username is already taken."));
-    };
-
-    // 4. Validate email format if provided
-    switch (request.email) {
-      case null {}; // No email provided, that's fine.
-      case (?email) {
-        if (not Utils.isValidEmail(email)) {
-          return #Err(#BadRequest("Invalid email format."));
-        };
-      };
-    };
-
-    // Create and store the new user
-    let now = Time.now();
-    let newUser : User = {
-      principal = caller;
-      username = request.username;
-      email = request.email;
-      profile = request.profile;
-      repositories = [];
-      createdAt = now;
-      updatedAt = now;
-    };
-
-    users.put(caller, newUser);
-    usernames.put(newUser.username, newUser.principal); // Add to username index
-
-    return #Ok(newUser);
+    userManager.registerUser(caller, request)
   };
 
-  // get user profile
   public query func getUser(principal : Principal) : async Result<User, Error> {
-    switch (users.get(principal)) {
-      case null #Err(#NotFound("User not found"));
-      case (?user) #Ok(user);
-    };
+    userManager.getUser(principal)
   };
 
-  // Update user profile
   public shared ({ caller }) func updateUser(
     request : UpdateUserProfileRequest
   ) : async Result<User, Error> {
-
-    switch (users.get(caller)) {
-      case null {
-        return #Err(#NotFound("User not found, please register first."));
-      };
-      case (?user) {
-
-        if (switch (request.displayName) { case null false; case (?d) Text.size(d) > 50 }) {
-          return #Err(#BadRequest("Display name cannot exceed 50 characters."));
-        };
-        if (switch (request.bio) { case null false; case (?b) Text.size(b) > 500 }) {
-          return #Err(#BadRequest("Bio cannot exceed 500 characters."));
-        };
-
-        let newProfile : Types.UserProfile = {
-          displayName = switch (request.displayName) {
-            case null { user.profile.displayName };
-            case (?newName) { ?newName };
-          };
-          bio = switch (request.bio) {
-            case null { user.profile.bio };
-            case (?newBio) { ?newBio };
-          };
-          avatar = switch (request.avatar) {
-            case null { user.profile.avatar };
-            case (?newAvatar) { ?newAvatar };
-          };
-          location = switch (request.location) {
-            case null { user.profile.location };
-            case (?newLocation) { ?newLocation };
-          };
-          website = switch (request.website) {
-            case null { user.profile.website };
-            case (?newWebsite) { ?newWebsite };
-          };
-          socialLinks = user.profile.socialLinks;
-        };
-
-        let updatedUser : User = {
-          user with
-          profile = newProfile;
-          updatedAt = Time.now();
-        };
-
-        users.put(caller, updatedUser);
-        return #Ok(updatedUser);
-      };
-    };
+    userManager.updateUser(caller, request)
   };
 
-  //Repository Management APIs
+  // REPOSITORY MANAGEMENT APIs
+
   public shared ({ caller }) func createRepository(request : CreateRepositoryRequest) : async Result<SerializableRepository, Error> {
-
-    // if user exists and get user object
-    let user = switch (users.get(caller)) {
-      case null { return #Err(#Unauthorized("User not registered")) };
-      case (?user) { user };
-    };
-
-    // Input Validation
-    if (not Utils.isValidRepositoryName(request.name)) {
-      return #Err(
-        #BadRequest(
-          "Invalid repository name. Use 1-100 characters without leading/trailing special characters."
-        )
-      );
-    };
-
-    if (switch (request.description) { case null false; case (?d) Text.size(d) > 500 }) {
-      return #Err(#BadRequest("Description cannot exceed 500 characters."));
-    };
-
-    if (request.targetChains.size() == 0) {
-      return #Err(#BadRequest("At least one target chain must be specified"));
-    };
-
-    let chainConfigs = Buffer.Buffer<(Types.BlockchainType, Types.ChainConfig)>(request.targetChains.size());
-    for (chain in request.targetChains.vals()) {
-      chainConfigs.add((chain, Utils.getDefaultChainConfig(chain)));
-    };
-
-    let now = Time.now();
-    let repositoryId = generateRepositoryId();
-
-    let targetChains = if (request.targetChains.size() == 0) {
-      [#ICP];
-    } else {
-      request.targetChains;
-    };
-
-    let chainConfigsBuffer = Buffer.Buffer<(Types.BlockchainType, Types.ChainConfig)>(targetChains.size());
-    for (chain in targetChains.vals()) {
-      chainConfigsBuffer.add((chain, Utils.getDefaultChainConfig(chain)));
-    };
-
-    let defaultSettings : Types.RepositorySettings = {
-      defaultBranch = "main";
-      allowForking = true;
-      allowIssues = true;
-      allowWiki = true;
-      allowProjects = true;
-      visibility = if (request.isPrivate) #Private else #Public;
-      license = request.license;
-      topics = [];
-    };
-
-    let mainBranch : Types.Branch = {
-      name = "main";
-      commitId = "initial_commit";
-      isDefault = true;
-      createdAt = now;
-      createdBy = caller;
-    };
-
-    let repository : Repository = {
-      id = repositoryId;
-      name = request.name;
-      description = request.description;
-      owner = caller;
-      collaborators = HashMap.HashMap<Principal, Types.Collaborator>(0, Principal.equal, Principal.hash);
-      isPrivate = request.isPrivate;
-      settings = defaultSettings;
-      createdAt = now;
-      updatedAt = now;
-      files = HashMap.HashMap<Text, FileEntry>(10, Text.equal, Text.hash);
-      commits = [];
-      branches = [mainBranch];
-      stars = 0;
-      forks = 0;
-      language = null;
-      size = 0;
-      supportedChains = targetChains;
-      deploymentTargets = [];
-      chainConfigs = Buffer.toArray(chainConfigsBuffer);
-      lastDeployment = null;
-    };
-
-    // Update State
-    repositories.put(repositoryId, repository);
-
-    // Update user's repository list using the user object
-    let updatedRepos = Array.append<Text>(user.repositories, [repositoryId]);
-
-    // Use cleaner 'with' syntax for the update
-    let updatedUser : User = {
-      user with
-      repositories = updatedRepos;
-      updatedAt = now;
-    };
-    users.put(caller, updatedUser);
-
-    return #Ok(Types.repositoryToSerializable(repository));
+    repositoryManager.createRepository(caller, request)
   };
 
   public shared query ({ caller }) func getRepository(id : Text) : async Result<SerializableRepository, Error> {
-    switch (repositories.get(id)) {
-      case null { return #Err(#NotFound("Repository not found")) };
-      case (?repo) {
-        if (Utils.canReadRepository(caller, repo)) {
-          return #Ok(Types.repositoryToSerializable(repo));
-        } else {
-          return #Err(#Forbidden("Access denied"));
-        };
-      };
-    };
+    repositoryManager.getRepository(caller, id)
   };
 
   public shared query ({ caller }) func listRepositories(
     owner : Principal,
     params : ?PaginationParams,
   ) : async Result<RepositoryListResponse, Error> {
-
-    // Get the user object for the specified owner
-    let user = switch (users.get(owner)) {
-      case null { return #Err(#NotFound("User not found")) };
-      case (?user) { user };
-    };
-
-    let page = switch (params) { case null 0; case (?p) p.page };
-    let limit = switch (params) { case null 10; case (?p) p.limit };
-    let startIndex = page * limit;
-
-    var visibleReposCount : Nat = 0;
-    let paginatedRepos = Buffer.Buffer<Repository>(limit);
-
-    // Optimized Loop
-    for (repoId in user.repositories.vals()) {
-      switch (repositories.get(repoId)) {
-        case null {};
-        case (?repo) {
-
-          // Auth Check
-
-          if (Utils.canReadRepository(caller, repo)) {
-
-            // Pagination
-
-            if (visibleReposCount >= startIndex and paginatedRepos.size() < limit) {
-              paginatedRepos.add(repo);
-            };
-            visibleReposCount += 1;
-          };
-        };
-      };
-    };
-
-    let response : RepositoryListResponse = {
-      repositories = Array.map<Repository, SerializableRepository>(
-        Buffer.toArray(paginatedRepos),
-        func(repo) { Types.repositoryToSerializable(repo) },
-      );
-      totalCount = visibleReposCount;
-      hasMore = (startIndex + paginatedRepos.size()) < visibleReposCount;
-    };
-
-    return #Ok(response);
+    repositoryManager.listRepositories(caller, owner, params)
   };
 
   public shared ({ caller }) func deleteRepository(id : Text) : async Result<Bool, Error> {
-    switch (repositories.get(id)) {
-      case null { return #Err(#NotFound("Repository not found")) };
-      case (?repo) {
-        // Authorization
-        if (repo.owner != caller) {
-          return #Err(#Forbidden("Only the repository owner can delete it."));
-        };
-
-        // Delete the repository from the main map.
-        repositories.delete(id);
-
-        // Update the owner's list of repositories.
-        switch (users.get(repo.owner)) {
-          case null {
-            // If the user is not found, we can't update their repository list.
-            // This could happen if the user was deleted after the repository was created.
-            // This case should ideally not happen if data is consistent,
-            // The repo is deleted, but we can't update the user's repositories list.
-
-          };
-          case (?user) {
-            let updatedRepos = Array.filter<Text>(
-              user.repositories,
-              func(repoId) {
-                repoId != id;
-              },
-            );
-
-            // 'with' keyword for the update.
-            let updatedUser : User = {
-              user with
-              repositories = updatedRepos;
-              updatedAt = Time.now();
-            };
-            users.put(user.principal, updatedUser);
-          };
-        };
-
-        return #Ok(true);
-      };
-    };
+    repositoryManager.deleteRepository(caller, id)
   };
 
-public shared ({ caller }) func uploadFile(
+  // FILE MANAGEMENT APIs
+
+  public shared ({ caller }) func uploadFile(
     request : UploadFileRequest,
     useIPFS: ?Bool  
-) : async Result<FileEntry, Error> {
-    let fileType = Utils.detectFileType(request.path, request.content);
-    let repo = switch (repositories.get(request.repositoryId)) {
-      case null { return #Err(#NotFound("Repository not found")) };
-      case (?repo) { repo };
-    };
+  ) : async Result<FileEntry, Error> {
+    let fileResult = repositoryManager.uploadFile(caller, request, useIPFS);
     
-    let contractMetadata = switch (fileType) {
-      case (?#SmartContract(info)) {
-        let languageVariant = switch (info.language) {
-          case "solidity" { #Solidity };
-          case "motoko" { #Motoko };
-          case "rust" { #Rust };
-          case "vyper" { #Vyper };
-          case "cairo" { #Cairo };
-          case "clarity" { #Clarity };
-          case "michelson" { #Michelson };
-          case "move" { #Move };
-          case "plutus" { #Plutus };
-          case "wasm" { #Wasm };
-          case _ { #Solidity };
-        };
+    // Handle incentives after successful upload
+    switch (fileResult) {
+      case (#Ok(fileEntry)) {
+        incentiveSystem.updateMetrics(caller, request.repositoryId, #Commit);
         
-        switch (GitOps.parseContractMetadata(
-          request.path,
-          request.content,
-          info.chain,
-          languageVariant,
-        )) {
-          case (#Ok(gitMetadata)) {
-            let typesMetadata: Types.ContractMetadata = {
-              blockchain = gitMetadata.blockchain;
-              language = gitMetadata.language;
-              version = gitMetadata.version;
-              compiler = gitMetadata.compiler;
-              abi = gitMetadata.abi;
-              bytecode = gitMetadata.bytecode;
-              sourceFiles = gitMetadata.sourceFiles;
-              dependencies = gitMetadata.dependencies;
-              deploymentConfig = switch (gitMetadata.deploymentConfig) {
-                case null null;
-                case (?config) ?{
-                  constructorArgs = config.constructorArgs;
-                  gasLimit = config.gasLimit;
-                  network = config.network;
-                  value = config.value;
-                  wallet = config.wallet;
-                  // Add missing fields required by Types.ContractMetadata
-                  confirmations = null;
-                  gasPrice = null;
-                  timeout = null;
-                };
-              };
-              sourceMap = null; // Add the missing sourceMap field
-            };
-            ?typesMetadata;
-          };
-          case (#Err(_)) {
-            // Handle error case
-            null;
-          };
-        };
-      };
-      case _ null;
-    };
-
-    if (not Utils.canWriteRepository(caller, repo)) {
-      return #Err(#Forbidden("You do not have write permission for this repository."));
-    };
-
-    if (not Utils.isValidPath(request.path)) {
-      return #Err(#BadRequest("Invalid file path."));
-    };
-    if (not Utils.isValidCommitMessage(request.commitMessage)) {
-      return #Err(#BadRequest("Commit message must be between 1 and 1000 characters."));
-    };
-
-    let contentSize = request.content.size();
-    if (contentSize > 10_000_000) {
-      return #Err(#BadRequest("File size cannot exceed 10 MB."));
-    };
-
-    let shouldUseIPFS = switch (useIPFS) {
-        case (?true) true;
-        case (?false) false;
-        case null (contentSize > 1024 * 1024);
-    };
-
-    if (shouldUseIPFS) {
-        let storageResult = await uploadFileToIPFS(
-            request.repositoryId,
-            request.path,
-            request.content,
-            false
+        let rewardResult = incentiveSystem.distributeReward(
+          caller,
+          request.repositoryId,
+          #CommitReward,
+          "File upload: " # request.path,
+          ?{
+            commitId = ?Utils.generateCommitHash(request.repositoryId, caller, request.commitMessage, Time.now());
+            pullRequestId = null;
+            issueId = null;
+            contributionScore = ?(Float.fromInt(fileEntry.size) / 1000.0);
+            impactLevel = if (fileEntry.size > 10000) ?#High else if (fileEntry.size > 1000) ?#Medium else ?#Low;
+          },
         );
-        
-        switch (storageResult) {
-            case (#Err(e)) return #Err(e);
-            case (#Ok(metadata)) {
-                let fileEntry: FileEntry = {
-                    path = request.path;
-                    content = Text.encodeUtf8("ipfs://" # (switch(metadata.cid) { case (?c) c; case null ""; }));
-                    size = metadata.size;
-                    hash = metadata.hash;
-                    version = 1;
-                    lastModified = Time.now();
-                    author = caller;
-                    commitMessage = ?request.commitMessage;
-                    fileType = fileType;
-                    contractMetadata = contractMetadata;
-                    targetChain = switch (fileType) {
-                        case (?#SmartContract(info)) ?info.chain;
-                        case _ null;
-                    };
-                };
-                
-                repo.files.put(request.path, fileEntry);
-                
-                ignore incentiveSystem.distributeReward(
-                    caller,
-                    request.repositoryId,
-                    #CommitReward,
-                    "File upload: " # request.path,
-                    null
-                );
-                
-                return #Ok(fileEntry);
-            };
-        };
-    };
 
-    // Regular file upload logic
-    let now = Time.now();
-    var oldFileSize : Nat = 0;
-
-    let fileExists = switch (repo.files.get(request.path)) {
-      case (?existingFile) {
-        oldFileSize := existingFile.size;
-        true;
-      };
-      case null { false };
-    };
-
-    let fileEntry : FileEntry = {
-      path = request.path;
-      content = request.content;
-      size = contentSize;
-      hash = Utils.generateFileHash(request.content);
-      version = if (fileExists) {
-        switch (repo.files.get(request.path)) {
-          case (?file) { file.version + 1 };
-          case null { 1 };
-        };
-      } else { 1 };
-      lastModified = now;
-      author = caller;
-      commitMessage = ?request.commitMessage;
-      fileType = fileType;
-      contractMetadata = contractMetadata;
-      targetChain = switch (fileType) {
-        case (?#SmartContract(info)) ?info.chain;
-        case _ null;
-      };
-    };
-
-    repo.files.put(request.path, fileEntry);
-
-    let newSizeAsInt : Int = repo.size - oldFileSize + contentSize;
-    let newSize = if (newSizeAsInt < 0) 0 else intToNat(newSizeAsInt);
-
-    let updatedRepo : Repository = {
-      repo with
-      updatedAt = now;
-      size = newSize;
-    };
-
-    repositories.put(request.repositoryId, updatedRepo);
-
-    ignore incentiveSystem.updateMetrics(caller, request.repositoryId, #Commit);
-
-    let rewardResult = incentiveSystem.distributeReward(
-      caller,
-      request.repositoryId,
-      #CommitReward,
-      "File upload: " # request.path,
-      ?{
-        commitId = ?Utils.generateCommitHash(request.repositoryId, caller, request.commitMessage, now);
-        pullRequestId = null;
-        issueId = null;
-        contributionScore = ?(Float.fromInt(contentSize) / 1000.0);
-        impactLevel = if (contentSize > 10000) ?#High else if (contentSize > 1000) ?#Medium else ?#Low;
-      },
-    );
-
-    switch (rewardResult) {
-      case (#Ok(reward)) {
-        Debug.print("Reward distributed: " # reward.id # " - " # Nat.toText(reward.amount) # " ICPH");
-      };
-      case (#Err(error)) {
-        Debug.print("Reward distribution failed: " # debug_show (error));
-      };
-    };
-
-    return #Ok(fileEntry);
-};
-
-  public shared query ({ caller }) func getFile(repositoryId : Text, path : Text) : async Result<FileEntry, Error> {
-    switch (repositories.get(repositoryId)) {
-      case null { return #Err(#NotFound("Repository not found")) };
-      case (?repo) {
-        if (not Utils.canReadRepository(caller, repo)) {
-          return #Err(#Forbidden("Access denied"));
-        };
-
-        // direct HashMap lookup instead of Array.find
-        // This is more efficient for large repositories.
-        switch (repo.files.get(path)) {
-          case null { return #Err(#NotFound("File not found")) };
-          case (?file) { return #Ok(file) };
+        // Log reward distribution but don't affect the result
+        switch (rewardResult) {
+          case (#Ok(reward)) {
+            Debug.print("Reward distributed: " # reward.id # " - " # Nat.toText(reward.amount) # " ICPH");
+          };
+          case (#Err(error)) {
+            Debug.print("Reward distribution failed: " # debug_show (error));
+          };
         };
       };
+      case (#Err(_)) {
+        // File upload failed, no rewards
+      };
     };
+
+    fileResult
   };
 
-  // List files
+  public shared query ({ caller }) func getFile(repositoryId : Text, path : Text) : async Result<FileEntry, Error> {
+    repositoryManager.getFile(caller, repositoryId, path)
+  };
+
   public shared query ({ caller }) func listFiles(
     repositoryId : Text,
     path : ?Text,
   ) : async Result<FileListResponse, Error> {
-
-    switch (repositories.get(repositoryId)) {
-      case null { return #Err(#NotFound("Repository not found")) };
-      case (?repo) {
-        // Caller Access & Authorization
-        if (not Utils.canReadRepository(caller, repo)) {
-          return #Err(#Forbidden("Access denied"));
-        };
-
-        // HashMap Structure
-        let searchPath = switch (path) {
-          case null "";
-          case (?p) p;
-        };
-
-        let matchingFiles = Buffer.Buffer<FileEntry>(0);
-        for ((filePath, file) in repo.files.entries()) {
-          if (Text.startsWith(filePath, #text searchPath)) {
-            matchingFiles.add(file);
-          };
-        };
-
-        let filesArray = Buffer.toArray(matchingFiles);
-        let response : FileListResponse = {
-          files = filesArray;
-          totalCount = filesArray.size();
-          path = searchPath;
-        };
-
-        return #Ok(response);
-      };
-    };
+    repositoryManager.listFiles(caller, repositoryId, path)
   };
 
-  // Delete file
   public shared ({ caller }) func deleteFile(repositoryId : Text, path : Text) : async Result<Bool, Error> {
+    repositoryManager.deleteFile(caller, repositoryId, path)
+  };
 
-    let repo = switch (repositories.get(repositoryId)) {
-      case null { return #Err(#NotFound("Repository not found")) };
-      case (?repo) { repo };
-    };
+  // SEARCH APIs
 
-    if (not Utils.canWriteRepository(caller, repo)) {
-      return #Err(#Forbidden("You do not have write permission for this repository."));
-    };
+  public shared ({ caller }) func search(request : SearchRequest) : async Result<SerializableSearchResults, Error> {
+    searchManager.search(caller, request)
+  };
 
-    // Get the file to find its size before deleting
-    let fileToDelete = switch (repo.files.get(path)) {
-      case null { return #Err(#NotFound("File not found in repository.")) };
-      case (?file) { file };
-    };
+  public shared query ({ caller }) func searchSuggestions(
+    searchQuery : Text,
+    maxSuggestions : ?Nat,
+  ) : async Result<[Text], Error> {
+    searchManager.searchSuggestions(caller, searchQuery, maxSuggestions)
+  };
 
-    let fileSize = fileToDelete.size;
-
-    // Instantly remove the file from the HashMap
-    repo.files.delete(path);
-
-    // Correctly recalculate the new repository size
-    let newSizeAsInt : Int = repo.size - fileSize;
-    let newSize = if (newSizeAsInt < 0) 0 else intToNat(newSizeAsInt);
-
-    let updatedRepo : Repository = {
-      repo with
-      // files field is already updated by the .delete() method
-      updatedAt = Time.now();
-      size = newSize;
-    };
-
-    repositories.put(repositoryId, updatedRepo);
-    return #Ok(true);
+  public shared ({ caller }) func searchRepository(
+    repositoryId : Text,
+    searchQuery : Text,
+    params : ?PaginationParams,
+  ) : async Result<FileListResponse, Error> {
+    repositoryManager.searchRepository(caller, repositoryId, searchQuery, params)
   };
 
   // System monitoring
@@ -1579,6 +453,10 @@ public shared ({ caller }) func uploadFile(
     true;
   };
 
+  //
+  // CONTRACT DEPLOYMENT APIS
+  //
+
   public shared ({ caller }) func deployContract(
     repositoryId : Text,
     filePath : Text,
@@ -1587,6 +465,8 @@ public shared ({ caller }) func uploadFile(
     constructorArgs : ?Text,
   ) : async Result<DeploymentRecord, Error> {
     // Check permissions
+    let repositories = stateManager.getRepositories();
+    
     switch (repositories.get(repositoryId)) {
       case null { #Err(#NotFound("Repository not found")) };
       case (?repo) {
@@ -1662,36 +542,41 @@ public shared ({ caller }) func uploadFile(
   };
 
   public func autoDeployOnCommit(
-    repositoryId : Text,
-    commitId : Text,
-    changedFiles : [Text],
-  ) : async () {
-    switch (repositories.get(repositoryId)) {
-      case null {};
-      case (?repo) {
-        // Check each deployment target
-        for (target in repo.deploymentTargets.vals()) {
-          if (target.autoDeploy) {
-            // Find contract files for this chain
-            for (filePath in changedFiles.vals()) {
-              switch (repo.files.get(filePath)) {
-                case null {};
-                case (?file) {
-                  switch (file.fileType) {
-                    case (?#SmartContract(contractInfo)) {
-                      if (contractInfo.chain == target.chain) {
-                        // Auto-deploy
-                        let _ = await deployContract(
-                          repositoryId,
-                          filePath,
-                          target.chain,
-                          target.network,
-                          null,
-                        );
-                      };
+  repositoryId : Text,
+  commitId : Text,
+  changedFiles : [Text],
+) : async () {
+  let repositories = stateManager.getRepositories();
+  
+  switch (repositories.get(repositoryId)) {
+    case null {};
+    case (?repo) {
+      // Log the commit being processed
+      Debug.print("Auto-deploying changes from commit: " # commitId);
+      
+      // Check each deployment target
+      for (target in repo.deploymentTargets.vals()) {
+        if (target.autoDeploy) {
+          // Find contract files for this chain
+          for (filePath in changedFiles.vals()) {
+            switch (repo.files.get(filePath)) {
+              case null {};
+              case (?file) {
+                switch (file.fileType) {
+                  case (?#SmartContract(contractInfo)) {
+                    if (contractInfo.chain == target.chain) {
+                      // Auto-deploy with commit reference
+                      let _ = await deployContract(
+                        repositoryId,
+                        filePath,
+                        target.chain,
+                        target.network,
+                        null,
+                      );
+                      Debug.print("Auto-deployed " # filePath # " from commit " # commitId);
                     };
-                    case _ {};
                   };
+                  case _ {};
                 };
               };
             };
@@ -1700,15 +585,17 @@ public shared ({ caller }) func uploadFile(
       };
     };
   };
+};
 
-  //Collaborator Management APIs
+  // COLLABORATOR MANAGEMENT APIs
+
   public shared ({ caller }) func addCollaborator(request : AddCollaboratorRequest) : async Result<CollaboratorInfo, Error> {
     return CollaboratorManager.addCollaborator(
       caller,
       request,
-      repositories,
-      users,
-      usernames,
+      stateManager.getRepositories(),
+      stateManager.getUsers(),
+      stateManager.getUsernames(),
     );
   };
 
@@ -1716,8 +603,8 @@ public shared ({ caller }) func uploadFile(
     return CollaboratorManager.removeCollaborator(
       caller,
       request,
-      repositories,
-      usernames,
+      stateManager.getRepositories(),
+      stateManager.getUsernames(),
     );
   };
 
@@ -1725,9 +612,9 @@ public shared ({ caller }) func uploadFile(
     return CollaboratorManager.updateCollaboratorPermission(
       caller,
       request,
-      repositories,
-      usernames,
-      users,
+      stateManager.getRepositories(),
+      stateManager.getUsernames(),
+      stateManager.getUsers(),
     );
   };
 
@@ -1735,16 +622,18 @@ public shared ({ caller }) func uploadFile(
     return CollaboratorManager.listCollaborators(
       caller,
       request,
-      repositories,
-      users,
+      stateManager.getRepositories(),
+      stateManager.getUsers(),
     );
   };
 
+  // GOVERNANCE APIs
+
   public shared ({ caller }) func initializeGovernanceTokens(amount : TokenAmount) : async Result<Bool, Error> {
-    // Check if user is registered
-    switch (users.get(caller)) {
+  // Check if user is registered
+    switch (stateManager.getUsers().get(caller)) {
       case null { return #Err(#Unauthorized("User not registered")) };
-      case (?user) {
+      case (?_) { // Use wildcard since we only need to verify existence
         governanceState.initializeGovernanceToken(caller, amount);
         return #Ok(true);
       };
@@ -1762,7 +651,7 @@ public shared ({ caller }) func uploadFile(
 
   // Create a new proposal
   public shared ({ caller }) func createProposal(request : CreateProposalRequest) : async Result<Proposal, Error> {
-    return governanceState.createProposal(caller, request, users);
+    return governanceState.createProposal(caller, request, stateManager.getUsers());
   };
 
   // Cast a vote on a proposal
@@ -1790,7 +679,7 @@ public shared ({ caller }) func uploadFile(
 
   // Execute a passed proposal
   public shared ({ caller }) func executeProposal(proposalId : ProposalId) : async Result<Bool, Error> {
-    return governanceState.executeProposal(caller, proposalId, repositories);
+    return governanceState.executeProposal(caller, proposalId, stateManager.getRepositories());
   };
 
   // Add a discussion post to a proposal
@@ -1805,9 +694,9 @@ public shared ({ caller }) func uploadFile(
 
   // Helper function to check if a user can create proposals
   public query ({ caller }) func canCreateProposal() : async Bool {
-    switch (users.get(caller)) {
+    switch (stateManager.getUsers().get(caller)) {
       case null { false };
-      case (?user) {
+      case (?_) {
         let votingPower = governanceState.getVotingPower(caller);
         votingPower >= 10;
       };
@@ -1838,8 +727,9 @@ public shared ({ caller }) func uploadFile(
     title : Text,
     description : Text,
   ) : async Result<Proposal, Error> {
-
     // Verify repository exists and caller has permission
+    let repositories = stateManager.getRepositories();
+    
     switch (repositories.get(repositoryId)) {
       case null { return #Err(#NotFound("Repository not found")) };
       case (?repo) {
@@ -1858,63 +748,75 @@ public shared ({ caller }) func uploadFile(
           executionDelay = null;
         };
 
-        return governanceState.createProposal(caller, proposalRequest, users);
+        return governanceState.createProposal(caller, proposalRequest, stateManager.getUsers());
       };
     };
   };
 
   // Create a collaborator promotion proposal
   public shared ({ caller }) func proposeCollaboratorPromotion(
-    repositoryId : Text,
-    collaboratorUsername : Text,
-    newPermission : Types.CollaboratorPermission,
-    title : Text,
-    description : Text,
-  ) : async Result<Proposal, Error> {
+  repositoryId : Text,
+  collaboratorUsername : Text,
+  newPermission : Types.CollaboratorPermission,
+  title : Text,
+  description : Text,
+) : async Result<Proposal, Error> {
+  let repositories = stateManager.getRepositories();
+  let usernames = stateManager.getUsernames();
+  let users = stateManager.getUsers();
+  
+  // Verify repository exists
+  switch (repositories.get(repositoryId)) {
+    case null { return #Err(#NotFound("Repository not found")) };
+    case (?repo) {
+      // Check if caller can manage collaborators
+      if (not CollaboratorManager.canManageCollaborators(caller, repo)) {
+        return #Err(#Forbidden("You don't have permission to propose collaborator changes"));
+      };
 
-    // Verify repository exists
-    switch (repositories.get(repositoryId)) {
-      case null { return #Err(#NotFound("Repository not found")) };
-      case (?repo) {
-        // Check if caller can manage collaborators
-        if (not CollaboratorManager.canManageCollaborators(caller, repo)) {
-          return #Err(#Forbidden("You don't have permission to propose collaborator changes"));
-        };
+      // Get collaborator principal from username
+      let collaboratorPrincipal = switch (usernames.get(collaboratorUsername)) {
+        case null { return #Err(#NotFound("User not found")) };
+        case (?principal) { principal };
+      };
 
-        // Get collaborator principal from username
-        let collaboratorPrincipal = switch (usernames.get(collaboratorUsername)) {
-          case null { return #Err(#NotFound("User not found")) };
-          case (?principal) { principal };
-        };
-
-        // Verify collaborator exists
-        switch (repo.collaborators.get(collaboratorPrincipal)) {
-          case null { return #Err(#NotFound("User is not a collaborator")) };
-          case (?collab) {
-            let proposalRequest : CreateProposalRequest = {
-              proposalType = #CollaboratorPromotion({
-                repositoryId = repositoryId;
-                collaborator = collaboratorPrincipal;
-                newPermission = newPermission;
-              });
-              title = title;
-              description = description;
-              votingDuration = null;
-              executionDelay = null;
-            };
-
-            return governanceState.createProposal(caller, proposalRequest, users);
+      // Verify collaborator exists
+      switch (repo.collaborators.get(collaboratorPrincipal)) {
+        case null { return #Err(#NotFound("User is not a collaborator")) };
+        case (?_) { 
+          let proposalRequest : CreateProposalRequest = {
+            proposalType = #CollaboratorPromotion({
+              repositoryId = repositoryId;
+              collaborator = collaboratorPrincipal;
+              newPermission = newPermission;
+            });
+            title = title;
+            description = description;
+            votingDuration = null;
+            executionDelay = null;
           };
+
+          return governanceState.createProposal(caller, proposalRequest, users);
         };
       };
     };
   };
+};
 
   // Timer function to automatically process proposals (call this periodically)
   public shared func processGovernanceTimers() : async () {
     let processedProposals = governanceState.processProposalResults();
-    // for logging or notifications
+    
+    // Log processed proposals for monitoring
+    if (processedProposals.size() > 0) {
+      Debug.print("Processed " # Nat.toText(processedProposals.size()) # " governance proposals");
+      for (proposalId in processedProposals.vals()) {
+        Debug.print("Processed proposal: " # Nat.toText(proposalId));
+      };
+    };
   };
+
+  // AUTHENTICATION APIs
 
   public shared ({ caller }) func login() : async Result<SessionToken, Error> {
     if (Principal.isAnonymous(caller)) {
@@ -1922,11 +824,11 @@ public shared ({ caller }) func uploadFile(
     };
 
     // Check if user is registered
-    switch (users.get(caller)) {
+    switch (stateManager.getUsers().get(caller)) {
       case null {
         return #Err(#NotFound("User not registered. Please register first."));
       };
-      case (?user) {
+      case (?_) { // Use wildcard since we only need to verify existence
         let session = sessionManager.createSession(caller);
         #Ok(session);
       };
@@ -1950,15 +852,14 @@ public shared ({ caller }) func uploadFile(
     expiresInDays : ?Nat,
   ) : async Result<Text, Error> {
     // Check if user is registered
-    switch (users.get(caller)) {
+    switch (stateManager.getUsers().get(caller)) {
       case null {
         return #Err(#Unauthorized("User not registered"));
       };
-      case (?user) {
+      case (?_) { // Use wildcard since we only need to verify existence
         let expiresAt = switch (expiresInDays) {
           case null { null };
           case (?days) {
-
             // Convert days to nanoseconds and add to current time
             let durationNanos : Int = days * 24 * 60 * 60 * 1_000_000_000;
             let expirationTime : Int = Time.now() + durationNanos;
@@ -1983,12 +884,12 @@ public shared ({ caller }) func uploadFile(
 
   // Check permissions
   public query ({ caller }) func checkPermission(permission : Permission) : async Bool {
-    Auth.hasPermission(caller, permission, users);
+    Auth.hasPermission(caller, permission, stateManager.getUsers());
   };
 
   // Get auth context
   public query ({ caller }) func getAuthContext() : async AuthContext {
-    Auth.createAuthContext(caller, #InternetIdentity, users);
+    Auth.createAuthContext(caller, #InternetIdentity, stateManager.getUsers());
   };
 
   // Protected endpoint example - update existing functions
@@ -2008,12 +909,12 @@ public shared ({ caller }) func uploadFile(
     };
 
     // Check permission
-    if (not Auth.hasPermission(principal, #CreateRepository, users)) {
+    if (not Auth.hasPermission(principal, #CreateRepository, stateManager.getUsers())) {
       return #Err(#Forbidden("You don't have permission to create repositories"));
     };
 
-    // Call existing createRepository logic and await its result
-    return await createRepository(request);
+    // Call existing createRepository logic
+    return repositoryManager.createRepository(principal, request);
   };
 
   // Cleanup expired sessions (call periodically)
@@ -2022,7 +923,7 @@ public shared ({ caller }) func uploadFile(
   };
 
   // Rate limiting example
-  private var rateLimitStore = HashMap.HashMap<Text, Auth.RateLimitEntry>(100, Text.equal, Text.hash);
+  private transient var rateLimitStore = HashMap.HashMap<Text, Auth.RateLimitEntry>(100, Text.equal, Text.hash);
 
   public shared ({ caller }) func rateLimitedEndpoint() : async Result<Text, Error> {
     let config : Auth.RateLimitConfig = {
@@ -2038,11 +939,11 @@ public shared ({ caller }) func uploadFile(
     #Ok("Success");
   };
 
-  //git operations apis
+  // GIT OPERATIONS APIs
 
   // Create a new branch
   public shared ({ caller }) func createBranch(request : BranchRequest) : async Result<Types.Branch, Error> {
-    GitOps.createBranch(caller, request, repositories);
+    GitOps.createBranch(caller, request, stateManager.getRepositories());
   };
 
   // Delete a branch
@@ -2050,7 +951,7 @@ public shared ({ caller }) func uploadFile(
     repositoryId : Text,
     branchName : Text,
   ) : async Result<Bool, Error> {
-    GitOps.deleteBranch(caller, repositoryId, branchName, repositories);
+    GitOps.deleteBranch(caller, repositoryId, branchName, stateManager.getRepositories());
   };
 
   // Get commit history
@@ -2064,13 +965,22 @@ public shared ({ caller }) func uploadFile(
       case null 50;
       case (?l) Nat.min(l, 100);
     };
-
     let actualOffset = switch (offset) {
       case null 0;
       case (?o) o;
     };
 
-    GitOps.getCommitHistory(repositoryId, branch, actualLimit, actualOffset, repositories);
+    let repositories = stateManager.getRepositories();
+    switch (repositories.get(repositoryId)) {
+      case null { #Err(#NotFound("Repository not found")) };
+      case (?repo) {
+        if (not Utils.canReadRepository(caller, repo)) {
+          #Err(#Forbidden("No read permission"));
+        } else {
+          GitOps.getCommitHistory(repositoryId, branch, actualLimit, actualOffset, repositories);
+        };
+      };
+    };
   };
 
   // Get commit diff
@@ -2079,6 +989,8 @@ public shared ({ caller }) func uploadFile(
     commitId : Text,
   ) : async Result<[DiffResult], Error> {
     // Check read permission
+    let repositories = stateManager.getRepositories();
+    
     switch (repositories.get(repositoryId)) {
       case null { #Err(#NotFound("Repository not found")) };
       case (?repo) {
@@ -2093,15 +1005,17 @@ public shared ({ caller }) func uploadFile(
 
   // Merge branches
   public shared ({ caller }) func mergeBranches(request : MergeRequest) : async Result<MergeResult, Error> {
-    GitOps.mergeBranches(caller, request, repositories);
+    GitOps.mergeBranches(caller, request, stateManager.getRepositories());
   };
 
   // Clone repository
   public shared ({ caller }) func cloneRepository(request : CloneRequest) : async Result<SerializableRepository, Error> {
     // Check if user is registered
+    let users = stateManager.getUsers();
+    
     switch (users.get(caller)) {
       case null { #Err(#Unauthorized("User not registered")) };
-      case (?user) {
+      case (?_) {
         // Validate new repository name
         if (not Utils.isValidRepositoryName(request.newName)) {
           return #Err(#BadRequest("Invalid repository name"));
@@ -2110,22 +1024,15 @@ public shared ({ caller }) func uploadFile(
         let result = GitOps.cloneRepository(
           caller,
           request,
-          repositories,
-          generateRepositoryId,
+          stateManager.getRepositories(),
+          stateManager.generateRepositoryId,
         );
 
         switch (result) {
           case (#Err(e)) { #Err(e) };
           case (#Ok(clonedRepo)) {
             // Update user's repository list
-            let updatedRepos = Array.append(user.repositories, [clonedRepo.id]);
-            let updatedUser = {
-              user with
-              repositories = updatedRepos;
-              updatedAt = Time.now();
-            };
-            users.put(caller, updatedUser);
-
+            stateManager.updateUserRepositoryList(caller, clonedRepo.id, true);
             #Ok(Types.repositoryToSerializable(clonedRepo));
           };
         };
@@ -2138,8 +1045,9 @@ public shared ({ caller }) func uploadFile(
     repositoryId : Text,
     branch : Text,
   ) : async Result<GitStatus, Error> {
-
     // Check read permission
+    let repositories = stateManager.getRepositories();
+    
     switch (repositories.get(repositoryId)) {
       case null { #Err(#NotFound("Repository not found")) };
       case (?repo) {
@@ -2154,11 +1062,13 @@ public shared ({ caller }) func uploadFile(
 
   // Create tag
   public shared ({ caller }) func createTag(request : TagRequest) : async Result<Tag, Error> {
-    GitOps.createTag(caller, request, repositories);
+    GitOps.createTag(caller, request, stateManager.getRepositories());
   };
 
   // List branches
   public query ({ caller }) func listBranches(repositoryId : Text) : async Result<[Types.Branch], Error> {
+    let repositories = stateManager.getRepositories();
+    
     switch (repositories.get(repositoryId)) {
       case null { #Err(#NotFound("Repository not found")) };
       case (?repo) {
@@ -2173,6 +1083,8 @@ public shared ({ caller }) func uploadFile(
 
   // Get current branch
   public query ({ caller }) func getCurrentBranch(repositoryId : Text) : async Result<Types.Branch, Error> {
+    let repositories = stateManager.getRepositories();
+    
     switch (repositories.get(repositoryId)) {
       case null { #Err(#NotFound("Repository not found")) };
       case (?repo) {
@@ -2192,6 +1104,8 @@ public shared ({ caller }) func uploadFile(
     repositoryId : Text,
     branchName : Text,
   ) : async Result<Bool, Error> {
+    let repositories = stateManager.getRepositories();
+    
     switch (repositories.get(repositoryId)) {
       case null { #Err(#NotFound("Repository not found")) };
       case (?repo) {
@@ -2208,7 +1122,6 @@ public shared ({ caller }) func uploadFile(
         switch (branchExists) {
           case null { #Err(#NotFound("Branch not found")) };
           case (?_) {
-
             // Update branches
             let updatedBranches = Array.map<Types.Branch, Types.Branch>(
               repo.branches,
@@ -2234,12 +1147,13 @@ public shared ({ caller }) func uploadFile(
   };
 
   // Get file history
-
   public query ({ caller }) func getFileHistory(
     repositoryId : Text,
     filePath : Text,
     limit : ?Nat,
   ) : async Result<[Types.Commit], Error> {
+    let repositories = stateManager.getRepositories();
+    
     switch (repositories.get(repositoryId)) {
       case null { #Err(#NotFound("Repository not found")) };
       case (?repo) {
@@ -2281,6 +1195,8 @@ public shared ({ caller }) func uploadFile(
     baseBranch : Text,
     compareBranch : Text,
   ) : async Result<{ ahead : Nat; behind : Nat; commits : [Types.Commit] }, Error> {
+    let repositories = stateManager.getRepositories();
+    
     switch (repositories.get(repositoryId)) {
       case null { #Err(#NotFound("Repository not found")) };
       case (?repo) {
@@ -2302,7 +1218,7 @@ public shared ({ caller }) func uploadFile(
         switch (base, compare) {
           case (null, _) { #Err(#NotFound("Base branch not found")) };
           case (_, null) { #Err(#NotFound("Compare branch not found")) };
-          case (?baseBr, ?compareBr) {
+          case (?_, ?_) {
             // Simplified comparison
             #Ok({
               ahead = 0;
@@ -2316,12 +1232,13 @@ public shared ({ caller }) func uploadFile(
   };
 
   // Revert a commit
-
   public shared ({ caller }) func revertCommit(
     repositoryId : Text,
     commitId : Text,
     message : ?Text,
   ) : async Result<Types.Commit, Error> {
+    let repositories = stateManager.getRepositories();
+    
     switch (repositories.get(repositoryId)) {
       case null { #Err(#NotFound("Repository not found")) };
       case (?repo) {
@@ -2373,6 +1290,8 @@ public shared ({ caller }) func uploadFile(
 
   // Get repository statistics
   public query ({ caller }) func getRepositoryStats(repositoryId : Text) : async Result<{ totalCommits : Nat; totalBranches : Nat; totalFiles : Nat; contributors : [Principal]; languages : [Text] }, Error> {
+    let repositories = stateManager.getRepositories();
+    
     switch (repositories.get(repositoryId)) {
       case null { #Err(#NotFound("Repository not found")) };
       case (?repo) {
@@ -2439,10 +1358,13 @@ public shared ({ caller }) func uploadFile(
     };
   };
 
-  // deplyment codes
+  // DEPLOYMENT APIs
+
   public query ({ caller }) func getDeploymentHistory(
     repositoryId : Text
   ) : async Result<[Types.DeploymentRecord], Error> {
+    let repositories = stateManager.getRepositories();
+    
     switch (repositories.get(repositoryId)) {
       case null { #Err(#NotFound("Repository not found")) };
       case (?repo) {
@@ -2463,6 +1385,7 @@ public shared ({ caller }) func uploadFile(
     chain : Types.BlockchainType,
     transactionHash : Text,
   ) : async Result<Types.DeploymentStatus, Error> {
+    Debug.print("Checking deployment status id = " # deploymentId);
     await ChainFusion.getDeploymentStatus(chain, transactionHash);
   };
 
@@ -2471,6 +1394,8 @@ public shared ({ caller }) func uploadFile(
     message : CrossChainMessage,
   ) : async Result<Text, Error> {
     // Verify caller has permission
+    let repositories = stateManager.getRepositories();
+    
     switch (repositories.get(fromRepositoryId)) {
       case null { #Err(#NotFound("Repository not found")) };
       case (?repo) {
@@ -2505,6 +1430,8 @@ public shared ({ caller }) func uploadFile(
     repositoryId : Text,
     targets : [Types.DeploymentTarget],
   ) : async Result<Bool, Error> {
+    let repositories = stateManager.getRepositories();
+    
     switch (repositories.get(repositoryId)) {
       case null { #Err(#NotFound("Repository not found")) };
       case (?repo) {
@@ -2524,7 +1451,7 @@ public shared ({ caller }) func uploadFile(
     };
   };
 
-  public shared ({ caller }) func uploadFileWithAutoDeploy(
+  public shared func uploadFileWithAutoDeploy(
     request : UploadFileRequest
   ) : async Result<FileEntry, Error> {
     // First upload the file using existing logic
@@ -2536,6 +1463,8 @@ public shared ({ caller }) func uploadFile(
         // Check if it's a smart contract and auto-deploy is enabled
         switch (fileEntry.fileType) {
           case (?#SmartContract(contractInfo)) {
+            let repositories = stateManager.getRepositories();
+            
             switch (repositories.get(request.repositoryId)) {
               case null { #Ok(fileEntry) };
               case (?repo) {
@@ -2562,14 +1491,19 @@ public shared ({ caller }) func uploadFile(
     };
   };
 
-  public shared func verifyDeployment(
+  public shared ({ caller }) func verifyDeployment(
     repositoryId : Text,
     deploymentId : Text,
     chain : Types.BlockchainType,
   ) : async Result<Bool, Error> {
+    let repositories = stateManager.getRepositories();
+    
     switch (repositories.get(repositoryId)) {
       case null { #Err(#NotFound("Repository not found")) };
       case (?repo) {
+        if (not Utils.canReadRepository(caller, repo)) {
+          return #Err(#Forbidden("No read permission"));
+        };
         switch (deployments.get(repositoryId)) {
           case null { #Err(#NotFound("No deployments found")) };
           case (?history) {
@@ -2606,6 +1540,8 @@ public shared ({ caller }) func uploadFile(
   public query ({ caller }) func getMultiChainDeploymentStatus(
     repositoryId : Text
   ) : async Result<[(Types.BlockchainType, ?DeploymentRecord)], Error> {
+    let repositories = stateManager.getRepositories();
+    
     switch (repositories.get(repositoryId)) {
       case null { #Err(#NotFound("Repository not found")) };
       case (?repo) {
@@ -2635,6 +1571,8 @@ public shared ({ caller }) func uploadFile(
     };
   };
 
+  // INCENTIVE SYSTEM APIs
+
   public shared (msg) func initializeIncentiveSystem() : async Result<Bool, Error> {
     if (not isAdmin(msg.caller)) {
       return #Err(#Forbidden("Admin access required"));
@@ -2644,8 +1582,7 @@ public shared ({ caller }) func uploadFile(
     #Ok(true);
   };
 
-  //token management
-  //get user token balance
+  // Get user token balance
   public query (msg) func getBalance() : async Incentives.TokenAmount {
     incentiveSystem.getBalance(msg.caller);
   };
@@ -2667,7 +1604,6 @@ public shared ({ caller }) func uploadFile(
     incentiveSystem.transfer(msg.caller, to, amount);
   };
 
-  //reward management
   // Manual contribution recording
   public shared (msg) func recordContribution(
     repositoryId : Text,
@@ -2684,9 +1620,11 @@ public shared ({ caller }) func uploadFile(
     };
 
     // Validate repository exists
+    let repositories = stateManager.getRepositories();
+    
     switch (repositories.get(repositoryId)) {
       case (null) return #Err(#NotFound("Repository not found"));
-      case (?repo) {
+      case (?_) {
         // Update metrics based on contribution type
         let metricType = switch (contributionType) {
           case (#Commit(_)) #Commit;
@@ -2790,7 +1728,7 @@ public shared ({ caller }) func uploadFile(
   public shared (msg) func stakeTokens(
     amount: TokenAmount,
     lockDays: Nat,
-) : async Result<Incentives.StakePosition, Error> {
+  ) : async Result<Incentives.StakePosition, Error> {
     if (Principal.isAnonymous(msg.caller)) {
         return #Err(#Unauthorized("Authentication required"));
     };
@@ -2817,6 +1755,7 @@ public shared ({ caller }) func uploadFile(
 
     incentiveSystem.claimStakingRewards(msg.caller);
   };
+  
   public query func getGlobalLeaderboard(limit : ?Nat) : async [Incentives.LeaderboardEntry] {
     let actualLimit = Option.get(limit, 50);
     incentiveSystem.getLeaderboard(null, null, actualLimit);
@@ -2840,7 +1779,7 @@ public shared ({ caller }) func uploadFile(
     incentiveSystem.getLeaderboard(repositoryId, ?timeframe, actualLimit);
   };
 
-  //admin functions
+  // Admin functions
   public shared (msg) func resetMonthlyBudget() : async Result<Bool, Error> {
     if (not isAdmin(msg.caller)) {
       return #Err(#Forbidden("Admin access required"));
@@ -2861,13 +1800,13 @@ public shared ({ caller }) func uploadFile(
 
   public shared ({ caller }) func commitWithRewards(request : CommitRequest) : async Result<Types.Commit, Error> {
     // First create the commit using existing logic
-    let commitResult = GitOps.createCommit(caller, request, repositories);
+    let commitResult = GitOps.createCommit(caller, request, stateManager.getRepositories());
 
     switch (commitResult) {
       case (#Err(e)) { #Err(e) };
       case (#Ok(commit)) {
         // Auto-distribute commit reward
-        ignore incentiveSystem.updateMetrics(caller, request.repositoryId, #Commit);
+        incentiveSystem.updateMetrics(caller, request.repositoryId, #Commit);
 
         let rewardResult = incentiveSystem.distributeReward(
           caller,
@@ -2897,147 +1836,156 @@ public shared ({ caller }) func uploadFile(
     };
   };
 
-  //storage management APIs
-   public shared({ caller }) func uploadFileToIPFS(
-        repositoryId: Text,
-        path: Text,
-        content: Blob,
-        encrypt: Bool
-    ): async Result<FileMetadata, Error> {
-        // Check repository access
-        switch (repositories.get(repositoryId)) {
-            case null { #Err(#NotFound("Repository not found")); };
-            case (?repo) {
-                if (not Utils.canWriteRepository(caller, repo)) {
-                    return #Err(#Forbidden("No write permission"));
-                };
-                
-                let uploadRequest: UploadRequest = {
-                    repositoryId = repositoryId;
-                    path = path;
-                    content = content;
-                    mimeType = null;
-                    encrypt = encrypt;
-                    compress = content.size() > 1024 * 1024; // Compress if > 1MB
-                    providers = [#IPFS, #ICP]; // Store on both IPFS and ICP
-                };
-                
-                let result = await storageManager.uploadFile(uploadRequest, caller);
-                
-                // Update contribution metrics
-                switch (result) {
-                    case (#Ok(metadata)) {
-                        incentiveSystem.updateMetrics(caller, repositoryId, #Commit);
-                    };
-                    case (#Err(_)) {};
-                };
-                
-                result;
-            };
-        };
-    };
+  //
+  // STORAGE MANAGEMENT APIs
+  //
+  
+  public shared({ caller }) func uploadFileToIPFS(
+    repositoryId: Text,
+    path: Text,
+    content: Blob,
+    encrypt: Bool
+  ): async Result<FileMetadata, Error> {
+    // Check repository access
+    let repositories = stateManager.getRepositories();
     
-    // Download file from storage
-    public shared({ caller }) func downloadFileFromStorage(
-        repositoryId: Text,
-        path: Text,
-        provider: ?StorageProvider
-    ): async Result<Blob, Error> {
-        // Check repository access
-        switch (repositories.get(repositoryId)) {
-            case null { #Err(#NotFound("Repository not found")); };
-            case (?repo) {
-                if (not Utils.canReadRepository(caller, repo)) {
-                    return #Err(#Forbidden("No read permission"));
-                };
-                
-                let downloadRequest: DownloadRequest = {
-                    repositoryId = repositoryId;
-                    path = path;
-                    provider = provider;
-                    decrypt = true;
-                };
-                
-                await storageManager.downloadFile(downloadRequest, caller);
-            };
-        };
-    };
-    
-    // Pin file to IPFS pinning service
-    public shared({ caller }) func pinFile(
-        cid: Text,
-        service: PinningService
-    ): async Result<PinStatus, Error> {
-        // Verify caller owns a repository containing this CID
-        var hasAccess = false;
-        label checkAccess for ((repoId, repo) in repositories.entries()) {
-            if (repo.owner == caller) {
-                let files = storageManager.listFiles(repoId, null);
-                for (file in files.vals()) {
-                    switch (file.cid) {
-                        case (?fileCid) {
-                            if (fileCid == cid) {
-                                hasAccess := true;
-                                break checkAccess;
-                            };
-                        };
-                        case null {};
-                    };
-                };
-            };
+    switch (repositories.get(repositoryId)) {
+      case null { #Err(#NotFound("Repository not found")); };
+      case (?repo) {
+        if (not Utils.canWriteRepository(caller, repo)) {
+          return #Err(#Forbidden("No write permission"));
         };
         
-        if (not hasAccess) {
-            return #Err(#Forbidden("You don't have access to this file"));
+        let uploadRequest: UploadRequest = {
+          repositoryId = repositoryId;
+          path = path;
+          content = content;
+          mimeType = null;
+          encrypt = encrypt;
+          compress = content.size() > 1024 * 1024; // Compress if > 1MB
+          providers = [#IPFS, #ICP]; // Store on both IPFS and ICP
         };
         
-        await storageManager.pinFile(cid, service);
-    };
-    
-    // Get storage statistics
-    public query({ caller }) func getStorageStats(): async StorageStats {
-        storageManager.getStats();
-    };
-    
-    // Verify file integrity
-    public shared({ caller }) func verifyFileIntegrity(
-        repositoryId: Text,
-        path: Text
-    ): async Result<Bool, Error> {
-        // Check repository access
-        switch (repositories.get(repositoryId)) {
-            case null { #Err(#NotFound("Repository not found")); };
-            case (?repo) {
-                if (not Utils.canReadRepository(caller, repo)) {
-                    return #Err(#Forbidden("No read permission"));
-                };
-                
-                await storageManager.verifyIntegrity(repositoryId, path, caller);
-            };
+        let result = await storageManager.uploadFile(uploadRequest, caller);
+        
+        // Update contribution metrics
+        switch (result) {
+          case (#Ok(_)) {
+            incentiveSystem.updateMetrics(caller, repositoryId, #Commit);
+          };
+          case (#Err(_)) {};
         };
+        
+        result;
+      };
     };
+  };
+    
+  // Download file from storage
+  public shared({ caller }) func downloadFileFromStorage(
+    repositoryId: Text,
+    path: Text,
+    provider: ?StorageProvider
+  ): async Result<Blob, Error> {
+    // Check repository access
+    let repositories = stateManager.getRepositories();
+    
+    switch (repositories.get(repositoryId)) {
+      case null { #Err(#NotFound("Repository not found")); };
+      case (?repo) {
+        if (not Utils.canReadRepository(caller, repo)) {
+          return #Err(#Forbidden("No read permission"));
+        };
+        
+        let downloadRequest: DownloadRequest = {
+          repositoryId = repositoryId;
+          path = path;
+          provider = provider;
+          decrypt = true;
+        };
+        
+        await storageManager.downloadFile(downloadRequest, caller);
+      };
+    };
+  };
+  
+  // Pin file to IPFS pinning service
+  public shared({ caller }) func pinFile(
+    cid: Text,
+    service: PinningService
+  ): async Result<PinStatus, Error> {
+    // Verify caller owns a repository containing this CID
+    var hasAccess = false;
+    let repositories = stateManager.getRepositories();
+    
+    label checkAccess for ((repoId, repo) in repositories.entries()) {
+      if (repo.owner == caller) {
+        let files = storageManager.listFiles(repoId, null);
+        for (file in files.vals()) {
+          switch (file.cid) {
+            case (?fileCid) {
+              if (fileCid == cid) {
+                hasAccess := true;
+                break checkAccess;
+              };
+            };
+            case null {};
+          };
+        };
+      };
+    };
+    
+    if (not hasAccess) {
+      return #Err(#Forbidden("You don't have access to this file"));
+    };
+    
+    await storageManager.pinFile(cid, service);
+  };
+  
+  // Get storage statistics
+  public query func getStorageStats(): async StorageStats {
+    storageManager.getStats();
+  };
+  
+  // Verify file integrity
+  public shared({ caller }) func verifyFileIntegrity(
+    repositoryId: Text,
+    path: Text
+  ): async Result<Bool, Error> {
+    // Check repository access
+    let repositories = stateManager.getRepositories();
+    
+    switch (repositories.get(repositoryId)) {
+      case null { #Err(#NotFound("Repository not found")); };
+      case (?repo) {
+        if (not Utils.canReadRepository(caller, repo)) {
+          return #Err(#Forbidden("No read permission"));
+        };
+        
+        await storageManager.verifyIntegrity(repositoryId, path, caller);
+      };
+    };
+  };
 
-    // Incentive System APIs
-    
-    // Get token balance
-    public query({ caller }) func getTokenBalance(user: ?Principal): async TokenAmount {
-        let target = switch (user) {
-            case null caller;
-            case (?p) p;
-        };
-        incentiveSystem.getBalance(target);
+  // Get token balance
+  public query({ caller }) func getTokenBalance(user: ?Principal): async TokenAmount {
+    let target = switch (user) {
+      case null caller;
+      case (?p) p;
     };
-    
-    // Transfer tokens
-    public shared({ caller }) func transferTokens(
-        to: Principal,
-        amount: TokenAmount
-    ): async Result<Bool, Error> {
-        incentiveSystem.transfer(caller, to, amount);
-    };
-    
-    // Create bounty
-    public shared({ caller }) func createBounty(
+    incentiveSystem.getBalance(target);
+  };
+  
+  // Transfer tokens
+  public shared({ caller }) func transferTokens(
+    to: Principal,
+    amount: TokenAmount
+  ): async Result<Bool, Error> {
+    incentiveSystem.transfer(caller, to, amount);
+  };
+  
+  // Create bounty
+  public shared({ caller }) func createBounty(
     repositoryId: Text,
     title: Text,
     description: Text,
@@ -3045,7 +1993,7 @@ public shared ({ caller }) func uploadFile(
     requirements: [Text],
     difficulty: Incentives.DifficultyLevel,
     expiresInDays: ?Nat
-): async Result<Incentives.Bounty, Error> {
+  ): async Result<Incentives.Bounty, Error> {
     if (Principal.isAnonymous(caller)) {
         return #Err(#Unauthorized("Authentication required"));
     };
@@ -3060,6 +2008,8 @@ public shared ({ caller }) func uploadFile(
     };
 
     // Check repository ownership
+    let repositories = stateManager.getRepositories();
+    
     switch (repositories.get(repositoryId)) {
         case null { #Err(#NotFound("Repository not found")); };
         case (?repo) {
@@ -3079,72 +2029,43 @@ public shared ({ caller }) func uploadFile(
             );
         };
     };
-};
+  };
     
-    // Submit bounty solution
-    public shared({ caller }) func submitBounty(
-        bountyId: Text,
-        pullRequestId: ?Text,
-        commitIds: [Text],
-        description: Text
-    ): async Result<Incentives.BountySubmission, Error> {
-        incentiveSystem.submitBounty(caller, bountyId, pullRequestId, commitIds, description);
+  // Submit bounty solution
+  public shared({ caller }) func submitBounty(
+    bountyId: Text,
+    pullRequestId: ?Text,
+    commitIds: [Text],
+    description: Text
+  ): async Result<Incentives.BountySubmission, Error> {
+    incentiveSystem.submitBounty(caller, bountyId, pullRequestId, commitIds, description);
+  };
+  
+  // Get leaderboard
+  public query func getLeaderboard(
+    repositoryId: ?Text,
+    timeframe: ?Int,
+    limit: ?Nat
+  ): async [LeaderboardEntry] {
+    let actualLimit = switch (limit) {
+        case null 10;
+        case (?l) Nat.min(l, 100);
     };
-    
-    
-    // Get leaderboard
-    public query func getLeaderboard(
-        repositoryId: ?Text,
-        timeframe: ?Int,
-        limit: ?Nat
-    ): async [LeaderboardEntry] {
-        let actualLimit = switch (limit) {
-            case null 10;
-            case (?l) Nat.min(l, 100);
-        };
-        incentiveSystem.getLeaderboard(repositoryId, timeframe, actualLimit);
-    };
-    
-    // Enhanced Search APIs
-    
-    // Main search function with caching
-    public shared({ caller }) func searchWithCache(
-        request: SearchRequest
-    ): async Result<Types.SerializableSearchResults, Error> {
-        // Since searchEngine is not defined, we'll use the existing search function directly
-        // Comment out the indexing operations that would be handled by a search engine
-        /*
-        // Index repositories for search
-        for ((_, repo) in repositories.entries()) {
-            searchEngine.indexRepository(repo);
-        };
-        
-        // Index users
-        for ((_, user) in users.entries()) {
-            searchEngine.indexUser(user);
-        };
-        
-        // Index files and commits
-        for ((repoId, repo) in repositories.entries()) {
-            for ((path, file) in repo.files.entries()) {
-                searchEngine.indexFile(repoId, file);
-            };
-            for (commit in repo.commits.vals()) {
-                searchEngine.indexCommit(repoId, commit);
-            };
-        };
-        */
-        
-        // Use the existing search function instead of searchEngine.search
-        let result = await search(request);
-        
-        return result;
-    };
-    
-    
-    // Override commit to trigger rewards
-public shared({ caller }) func commit(request: CommitRequest): async Result<Types.Commit, Error> {
-    let result = GitOps.createCommit(caller, request, repositories);
+    incentiveSystem.getLeaderboard(repositoryId, timeframe, actualLimit);
+  };
+  
+  // Enhanced Search APIs
+  public shared func searchWithCache(
+    request: SearchRequest
+  ): async Result<Types.SerializableSearchResults, Error> {
+    // Use the regular search function
+    let result = await search(request);
+    return result;
+  };
+  
+  // Override commit to trigger rewards
+  public shared({ caller }) func commit(request: CommitRequest): async Result<Types.Commit, Error> {
+    let result = GitOps.createCommit(caller, request, stateManager.getRepositories());
     
     switch (result) {
         case (#Ok(commit)) {
@@ -3172,6 +2093,5 @@ public shared({ caller }) func commit(request: CommitRequest): async Result<Type
         };
         case (#Err(e)) { #Err(e) };
     };
-};
-
+  };
 };

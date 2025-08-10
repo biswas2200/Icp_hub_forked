@@ -1,4 +1,4 @@
-import Types "./types";
+import Types "../types";
 import Principal "mo:base/Principal";
 import HashMap "mo:base/HashMap";
 import Result "mo:base/Result";
@@ -6,13 +6,13 @@ import Time "mo:base/Time";
 import Text "mo:base/Text";
 import Array "mo:base/Array";
 import Buffer "mo:base/Buffer";
-import Option "mo:base/Option";
+import _Option "mo:base/Option";
 import Int "mo:base/Int";
 import Char "mo:base/Char";
 import Nat "mo:base/Nat";
-import Nat32 "mo:base/Nat32";
+import _Nat32 "mo:base/Nat32";
 import Iter "mo:base/Iter";
-import Utils "./utils";
+import Utils "../utils/utils";
 
 module Auth {
     // Type definitions
@@ -113,7 +113,7 @@ module Auth {
     ): Bool {
         switch (users.get(principal)) {
             case null false;
-            case (?user) {
+            case (?_) {
                 // For now, all registered users have basic permissions
                 switch (permission) {
                     case (#CreateRepository or #ManageOwnProfile or #ViewPublicRepositories) true;
@@ -268,7 +268,7 @@ module Auth {
                 // Unauthenticated user - only basic permissions
                 permissions.add(#ViewPublicRepositories);
             };
-            case (?user) {
+            case (?_) {
                 // Authenticated user permissions
                 permissions.add(#ViewPublicRepositories);
                 permissions.add(#CreateRepository);
@@ -416,7 +416,7 @@ module Auth {
         };
         
         public func cleanupExpiredSessions(): Nat {
-            let now = Time.now();
+            let _now = Time.now();
             var cleaned = 0;
             
             for ((token, session) in sessions.entries()) {
@@ -516,7 +516,7 @@ module Auth {
         
         public func validateApiKey(key: Text): Result<ApiKey, Error> {
             let hashedKey = hashApiKey(key);
-            
+            let now = Time.now();
             // Find key by hash
             for ((id, apiKey) in apiKeys.entries()) {
                 if (apiKey.key == hashedKey) {
@@ -526,7 +526,7 @@ module Auth {
                     
                     switch (apiKey.expiresAt) {
                         case (?expiresAt) {
-                            if (Time.now() > expiresAt) {
+                            if (now > expiresAt) {
                                 return #Err(#Unauthorized("API key expired"));
                             };
                         };
@@ -536,7 +536,7 @@ module Auth {
                     // Update last used
                     let updatedKey = {
                         apiKey with
-                        lastUsed = ?Time.now();
+                        lastUsed = ?now;
                     };
                     apiKeys.put(id, updatedKey);
                     

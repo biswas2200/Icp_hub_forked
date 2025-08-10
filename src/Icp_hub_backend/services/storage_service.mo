@@ -1,4 +1,4 @@
-import Types "./types";
+import Types "../types";
 import Principal "mo:base/Principal";
 import HashMap "mo:base/HashMap";
 import Result "mo:base/Result";
@@ -12,17 +12,15 @@ import Int "mo:base/Int";
 import Array "mo:base/Array";
 import Buffer "mo:base/Buffer";
 import Iter "mo:base/Iter";
-import Option "mo:base/Option";
-import Utils "./utils";
-import Cycles "mo:base/ExperimentalCycles";
+import _Option "mo:base/Option";
+import Utils "../utils/utils";
+import _Cycles "mo:base/ExperimentalCycles";
 import Float "mo:base/Float";
-//import SHA256 "mo:sha2/Sha256";
-//import Hex "mo:encoding/Hex";
-import SHA256 "./libs/Sha256"; 
-import Hex "./libs/Hex"; 
-import Debug "mo:base/Debug";
+import SHA256 "mo:sha2/Sha256";
+import Hex "mo:hex";
+import _Debug "mo:base/Debug";
 import Error "mo:base/Error";
-import Char "mo:base/Char";
+import _Char "mo:base/Char";
 
 module Storage {
     // Type definitions
@@ -30,6 +28,24 @@ module Storage {
     type Error = Types.Error;
     type FileEntry = Types.FileEntry;
     type Repository = Types.Repository;
+
+    public type HttpRequest = {
+        url : Text;
+        max_response_bytes : ?Nat64;
+        headers : [{ name : Text; value : Text }];
+        body : ?[Nat8];
+        method : { #get; #post; #head };
+        transform : ?{
+            function : shared query { response : HttpResponse; context : Blob } -> async HttpResponse;
+            context : Blob;
+        };
+    };
+
+    public type HttpResponse = {
+        status : Nat;
+        headers : [{ name : Text; value : Text }];
+        body : [Nat8];
+    };
 
     // Storage types
     public type StorageProvider = {
@@ -251,25 +267,25 @@ module Storage {
                     case (#IPFS) {
                         switch (await uploadToIPFS(finalContent, chunks)) {
                             case (#Ok(location)) locations.add(location);
-                            case (#Err(e)) {}; // Log error but continue
+                            case (#Err(_e)) {}; // Log error but continue
                         };
                     };
                     case (#ICP) {
                         switch (await uploadToICP(finalContent)) {
                             case (#Ok(location)) locations.add(location);
-                            case (#Err(e)) {};
+                            case (#Err(_e)) {};
                         };
                     };
                     case (#Arweave) {
                         switch (await uploadToArweave(finalContent)) {
                             case (#Ok(location)) locations.add(location);
-                            case (#Err(e)) {};
+                            case (#Err(_e)) {};
                         };
                     };
                     case (#Filecoin) {
                         switch (await uploadToFilecoin(finalContent)) {
                             case (#Ok(location)) locations.add(location);
-                            case (#Err(e)) {};
+                            case (#Err(_e)) {};
                         };
                     };
                 };
@@ -318,7 +334,7 @@ module Storage {
         // Upload to IPFS
         private func uploadToIPFS(
             content: Blob,
-            chunks: [Blob]
+            _chunks: [Blob]
         ): async Result<StorageLocation, Error> {
             // Prepare multipart form data
             let boundary = "----ICPHubFormBoundary" # Int.toText(Time.now());
@@ -339,6 +355,7 @@ module Storage {
             };
             
             try {
+                let ic : actor { http_request : HttpRequest -> async HttpResponse } = actor("aaaaa-aa");
                 let response = await ic.http_request(request);
                 
                 if (response.status == 200) {
@@ -393,13 +410,13 @@ module Storage {
         };
 
         // Upload to Arweave
-        private func uploadToArweave(content: Blob): async Result<StorageLocation, Error> {
+        private func uploadToArweave(_content: Blob): async Result<StorageLocation, Error> {
             // Arweave integration would go here
             #Err(#BadRequest("Arweave integration not yet implemented"));
         };
 
         // Upload to Filecoin
-        private func uploadToFilecoin(content: Blob): async Result<StorageLocation, Error> {
+        private func uploadToFilecoin(_content: Blob): async Result<StorageLocation, Error> {
             // Filecoin integration would go here
             #Err(#BadRequest("Filecoin integration not yet implemented"));
         };
@@ -525,7 +542,7 @@ module Storage {
         };
 
         // Download from ICP storage
-        private func downloadFromICP(identifier: Text): async Result<Blob, Error> {
+        private func downloadFromICP(_identifier: Text): async Result<Blob, Error> {
             // In production, this would download from a storage canister
             #Err(#BadRequest("ICP storage download not yet implemented"));
         };
@@ -596,28 +613,28 @@ module Storage {
         };
 
         // Pin to Infura
-        private func pinToInfura(cid: Text, apiKey: Text): async Result<PinStatus, Error> {
+        private func pinToInfura(_cid: Text, _apiKey: Text): async Result<PinStatus, Error> {
             // Similar implementation for Infura
             #Err(#BadRequest("Infura pinning not yet implemented"));
         };
 
         // Pin to Web3.Storage
-        private func pinToWeb3Storage(cid: Text, apiKey: Text): async Result<PinStatus, Error> {
+        private func pinToWeb3Storage(_cid: Text, _apiKey: Text): async Result<PinStatus, Error> {
             // Similar implementation for Web3.Storage
             #Err(#BadRequest("Web3.Storage pinning not yet implemented"));
         };
 
         // Pin to NFT.Storage
-        private func pinToNFTStorage(cid: Text, apiKey: Text): async Result<PinStatus, Error> {
+        private func pinToNFTStorage(_cid: Text, _apiKey: Text): async Result<PinStatus, Error> {
             // Similar implementation for NFT.Storage
             #Err(#BadRequest("NFT.Storage pinning not yet implemented"));
         };
 
         // Pin to custom service
         private func pinToCustomService(
-            cid: Text,
+            _cid: Text,
             config: { name: Text; apiUrl: Text },
-            apiKey: Text
+            _apiKey: Text
         ): async Result<PinStatus, Error> {
             #Err(#BadRequest("Custom pinning service not yet implemented"));
         };
@@ -784,7 +801,7 @@ module Storage {
         // Encryption functions
         private func encryptContent(
             content: Blob,
-            owner: Principal
+            _owner: Principal
         ): Result<Blob, Error> {
             // Simplified encryption - in production use proper encryption
             // This would use the owner's derived key
@@ -793,7 +810,7 @@ module Storage {
 
         private func decryptContent(
             content: Blob,
-            owner: Principal
+            _owner: Principal
         ): Result<Blob, Error> {
             // Simplified decryption - in production use proper decryption
             #Ok(content); // Placeholder
@@ -801,9 +818,9 @@ module Storage {
 
         // Helper functions
         private func generateHash(content: Blob): Text {
-            let sha = SHA256.New();
-            sha.write(Blob.toArray(content));
-            Hex.encode(sha.sum());
+            let sha = SHA256.Digest(#sha256);
+            sha.writeBlob(content);
+            Hex.toText(Blob.toArray(sha.sum()));
         };
 
         private func createChunks(content: Blob, chunkSize: Nat): [Blob] {
@@ -813,7 +830,7 @@ module Storage {
             
             while (offset < bytes.size()) {
                 let end = Nat.min(offset + chunkSize, bytes.size());
-                let chunk = Array.subArray(bytes, offset, end - offset);
+                let chunk = Array.subArray(bytes, offset, Nat.sub(end, offset));
                 chunks.add(Blob.fromArray(chunk));
                 offset := end;
             };
@@ -975,7 +992,7 @@ module Storage {
     
 //     null;
 // };
-private func extractCIDFromResponse(response: Text): ?Text {
+private func extractCIDFromResponse(_response: Text): ?Text {
     // Mock CID for submission - replace with real parser later
     ?"QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG";
 };

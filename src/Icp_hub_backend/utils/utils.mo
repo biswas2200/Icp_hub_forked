@@ -1,9 +1,9 @@
-import Types "./types";
+import Types "../types";
 import Time "mo:base/Time";
 import Text "mo:base/Text";
 import Array "mo:base/Array";
 import Iter "mo:base/Iter";
-import Hash "mo:base/Hash";
+import _Hash "mo:base/Hash";
 import Nat "mo:base/Nat";
 import Principal "mo:base/Principal";
 import Char "mo:base/Char";
@@ -11,7 +11,7 @@ import Nat32 "mo:base/Nat32";
 import Int "mo:base/Int";
 import Debug "mo:base/Debug";
 import Buffer "mo:base/Buffer";
-import Nat8 "mo:base/Nat8";
+import _Nat8 "mo:base/Nat8";
 
 module {
     // helper functions
@@ -134,7 +134,8 @@ module {
         
         switch (atIndex, dotIndex) {
             case (?at, ?dot) {
-                at > 0 and dot > at + 1 and dot < Text.size(email) - 1;
+                let emailSize : Int = Text.size(email);
+                at > 0 and dot > at + 1 and dot < emailSize - 1; 
             };
             case _ false;
         };
@@ -303,7 +304,8 @@ module {
         switch (lastDotIndex) {
             case null null;
             case (?index) {
-                if (index == Text.size(path) - 1) {
+                let pathSize : Int = Text.size(path);
+                if (index == pathSize - 1) {
                     null;
                 } else {
                     let extension = textDrop(path, index + 1);
@@ -318,7 +320,8 @@ module {
         switch (lastSlashIndex) {
             case null path;
             case (?index) {
-                if (index == Text.size(path) - 1) {
+                let pathSize : Int = Text.size(path);
+                if (index == pathSize - 1) {
                     "";
                 } else {
                     textDrop(path, index + 1);

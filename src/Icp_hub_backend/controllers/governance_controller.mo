@@ -7,13 +7,13 @@ import Text "mo:base/Text";
 import Nat "mo:base/Nat";
 import Int "mo:base/Int";
 import Float "mo:base/Float";
-import Option "mo:base/Option";
+import _Option "mo:base/Option";
 import Iter "mo:base/Iter";
-import Order "mo:base/Order";
-import Debug "mo:base/Debug";
+import _Order "mo:base/Order";
+import _Debug "mo:base/Debug";
 import Nat32 "mo:base/Nat32";
-import Types "./types";
-import Utils "./utils";
+import Types "../types";
+import _Utils "../utils/utils";
 
 module Governance {
 
@@ -245,9 +245,9 @@ module Governance {
             users: HashMap.HashMap<Principal, Types.User>
         ): Types.Result<Proposal, Types.Error> {
             
-            let user = switch (users.get(caller)) {
+            switch (users.get(caller)) {
                 case null return #Err(#Unauthorized("User not registered"));
-                case (?u) u;
+                case (?_) ();
             };
 
             let votingPower = getVotingPower(caller);
@@ -318,7 +318,7 @@ module Governance {
 
             let updatedToken: GovernanceToken = {
                 userToken with
-                balance = userToken.balance - config.proposalDeposit;
+                balance = Nat.sub(userToken.balance, config.proposalDeposit);
                 lastActivityAt = now;
             };
             governanceTokens.put(caller, updatedToken);

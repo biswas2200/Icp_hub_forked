@@ -1,4 +1,4 @@
-import Types "./types";
+import Types "../types";
 import Principal "mo:base/Principal";
 import HashMap "mo:base/HashMap";
 import Result "mo:base/Result";
@@ -10,8 +10,8 @@ import Float "mo:base/Float";
 import Array "mo:base/Array";
 import Buffer "mo:base/Buffer";
 import Iter "mo:base/Iter";
-import Option "mo:base/Option";
-import Utils "./utils";
+import _Option "mo:base/Option";
+import _Utils "../utils/utils";
 
 module Incentives {
     // Type definitions
@@ -446,15 +446,20 @@ module Incentives {
                         return #Err(#BadRequest("Reward not approved"));
                     };
                     
+                    // Ensure treasury has sufficient funds to avoid Nat underflow
+                    if (treasury.balance < reward.amount or treasury.budgetRemaining < reward.amount) {
+                        return #Err(#BadRequest("Insufficient treasury funds"));
+                    };
+                    
                     // Update balances
                     balances.put(reward.recipient, getBalance(reward.recipient) + reward.amount);
                     
-                    // Update treasury
+                    // Update treasury with guarded subtraction to avoid Nat underflow
                     treasury := {
                         treasury with
-                        balance = treasury.balance - reward.amount;
+                        balance = Nat.sub(treasury.balance, reward.amount);
                         distributed = treasury.distributed + reward.amount;
-                        budgetRemaining = treasury.budgetRemaining - reward.amount;
+                        budgetRemaining = Nat.sub(treasury.budgetRemaining, reward.amount);
                     };
                     
                     // Update reward status
