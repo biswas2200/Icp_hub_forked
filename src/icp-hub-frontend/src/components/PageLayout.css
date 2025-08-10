@@ -1,0 +1,98 @@
+/* Page Layout Component */
+.page-layout {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  color: #e2e8f0;
+  /* Remove padding-top since components handle their own spacing */
+}
+
+.page-layout.full-width {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .page-layout {
+    /* Mobile adjustments if needed */
+  }
+  
+  /* Adjust component padding for mobile */
+  .page-layout .documentation-page,
+  .page-layout .repositories-page,
+  .page-layout .governance-page,
+  .page-layout .repository-detail-page {
+    padding-top: 70px; /* Slightly less padding on mobile */
+  }
+}
+
+@media (max-width: 480px) {
+  .page-layout {
+    /* Small mobile adjustments if needed */
+  }
+  
+  /* Adjust component padding for small mobile */
+  .page-layout .documentation-page,
+  .page-layout .repositories-page,
+  .page-layout .governance-page,
+  .page-layout .repository-detail-page {
+    padding-top: 60px; /* Even less padding on small mobile */
+  }
+}
+
+/* Content container for pages that need centered content */
+.page-layout:not(.full-width) {
+  padding-left: clamp(16px, 4vw, 48px);
+  padding-right: clamp(16px, 4vw, 48px);
+}
+
+/* Ensure content fills the available space */
+.page-layout > * {
+  flex: 1;
+  width: 100%;
+}
+
+/* Utility classes for common layouts */
+.page-layout.centered {
+  align-items: center;
+  justify-content: center;
+}
+
+.page-layout.start {
+  align-items: flex-start;
+}
+
+.page-layout.end {
+  align-items: flex-end;
+}
+
+/* Container for content that needs max-width */
+.page-layout .content-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Full-width content sections */
+.page-layout .full-width-section {
+  width: 100vw;
+  margin-left: calc(-50vw + 50%);
+  margin-right: calc(-50vw + 50%);
+}
+
+/* Responsive padding adjustments */
+@media (max-width: 1024px) {
+  .page-layout:not(.full-width) {
+    padding-left: clamp(12px, 3vw, 32px);
+    padding-right: clamp(12px, 3vw, 32px);
+  }
+}
+
+@media (max-width: 640px) {
+  .page-layout:not(.full-width) {
+    padding-left: clamp(8px, 2vw, 16px);
+    padding-right: clamp(8px, 2vw, 16px);
+  }
+} 
