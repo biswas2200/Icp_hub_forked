@@ -57,6 +57,32 @@ const idlFactory = ({ IDL }) => {
     'topics': IDL.Vec(IDL.Text),
   })
 
+  // Add BlockchainType definition
+  const BlockchainType = IDL.Variant({
+    'ICP': IDL.Null,
+    'Ethereum': IDL.Null,
+    'Solana': IDL.Null,
+    'Bitcoin': IDL.Null,
+    'Polygon': IDL.Null,
+    'Arbitrum': IDL.Null,
+    'BinanceSmartChain': IDL.Null,
+    'Avalanche': IDL.Null,
+    'Near': IDL.Null,
+    'Cosmos': IDL.Null,
+    'Polkadot': IDL.Null,
+  })
+
+  // Add ProjectType definition
+  const ProjectType = IDL.Variant({
+    'DeFi': IDL.Null,
+    'NFT': IDL.Null,
+    'DAO': IDL.Null,
+    'Gaming': IDL.Null,
+    'Infrastructure': IDL.Null,
+    'CrossChain': IDL.Null,
+    'Other': IDL.Text,
+  })
+
   const CollaboratorPermission = IDL.Variant({
     'Read': IDL.Null,
     'Write': IDL.Null,
@@ -105,7 +131,7 @@ const idlFactory = ({ IDL }) => {
     'name': IDL.Text,
     'description': IDL.Opt(IDL.Text),
     'owner': IDL.Principal,
-    'collaborators': IDL.Vec(Collaborator),
+    'collaborators': IDL.Vec(IDL.Tuple(IDL.Principal, Collaborator)),
     'isPrivate': IDL.Bool,
     'settings': RepositorySettings,
     'createdAt': IDL.Int,
@@ -130,6 +156,7 @@ const idlFactory = ({ IDL }) => {
     'profile': UserProfile,
   })
 
+  // Updated CreateRepositoryRequest to match backend
   const CreateRepositoryRequest = IDL.Record({
     'name': IDL.Text,
     'description': IDL.Opt(IDL.Text),
@@ -137,6 +164,9 @@ const idlFactory = ({ IDL }) => {
     'initializeWithReadme': IDL.Bool,
     'license': IDL.Opt(IDL.Text),
     'gitignoreTemplate': IDL.Opt(IDL.Text),
+    'targetChains': IDL.Vec(BlockchainType),
+    'projectType': ProjectType,
+    'autoDeployEnabled': IDL.Bool,
   })
 
   const UpdateRepositoryRequest = IDL.Record({
@@ -269,7 +299,7 @@ class ApiService {
       
       if (this.isAuthenticated) {
         await this.setupActor()
-        await this.getCurrentUser()
+        // Don't auto-fetch user on init to avoid signature issues
       } else {
         // Create anonymous actor for public operations
         await this.setupAnonymousActor()
@@ -278,59 +308,109 @@ class ApiService {
       return true
     } catch (error) {
       console.error('Failed to initialize API service:', error)
-      return false
+      throw error
     }
   }
 
   // Setup authenticated actor
   async setupActor() {
-    const identity = this.authClient.getIdentity()
-    this.agent = new HttpAgent({
-      identity,
-      host: import.meta.env.VITE_DFX_NETWORK === 'local' ? 'http://localhost:4943' : 'https://ic0.app',
-    })
+    try { 
+      const identity = this.authClient.getIdentity()
+      const host = import.meta.env.VITE_DFX_NETWORK === 'local' 
+        ? 'http://localhost:8000' 
+        : 'https://ic0.app'
 
-    // Fetch root key for certificate validation in development
-    if (import.meta.env.VITE_DFX_NETWORK === 'local') {
-      await this.agent.fetchRootKey()
+      // Create a new HttpAgent with the current identity
+      this.agent = new HttpAgent({
+        identity,
+        host,
+        verifyQuerySignatures: false // Disable for local development
+      })
+
+      // Fetch root key for certificate validation in development
+      if (import.meta.env.VITE_DFX_NETWORK === 'local') {
+        try {
+          await this.agent.fetchRootKey()
+          console.log('Root key fetched successfully')
+        } catch (error) {
+          console.warn('Failed to fetch root key:', error)
+          // Continue anyway for local development
+        }
+      }
+
+      // Create actor with the new agent
+      this.actor = Actor.createActor(idlFactory, {
+        agent: this.agent,
+        canisterId: BACKEND_CANISTER_ID,
+      })
+      
+      console.log('Actor setup completed with identity:', identity.getPrincipal().toString())
+    } catch (error) {
+      console.error('Failed to setup actor:', error)
+      throw error
     }
-
-    this.actor = Actor.createActor(idlFactory, {
-      agent: this.agent,
-      canisterId: BACKEND_CANISTER_ID,
-    })
   }
 
   // Setup anonymous actor for public operations
   async setupAnonymousActor() {
-    this.agent = new HttpAgent({
-      host: import.meta.env.VITE_DFX_NETWORK === 'local' ? 'http://localhost:4943' : 'https://ic0.app',
-    })
+    try {
+      this.agent = new HttpAgent({
+        host: import.meta.env.VITE_DFX_NETWORK === 'local' 
+        ? 'http://localhost:8000' 
+        : 'https://ic0.app',
+        verifyQuerySignatures: false // Disable for local development
+      })
 
-    if (import.meta.env.VITE_DFX_NETWORK === 'local') {
-      await this.agent.fetchRootKey()
+      if (import.meta.env.VITE_DFX_NETWORK === 'local') {
+        try {
+          await this.agent.fetchRootKey()
+          console.log('Root key fetched successfully')
+        } catch (error) {
+          console.warn('Failed to fetch root key:', error)
+          // Continue anyway for local development
+        }
+      }
+
+      this.actor = Actor.createActor(idlFactory, {
+        agent: this.agent,
+        canisterId: BACKEND_CANISTER_ID,
+      })
+      console.log('Anonymous actor setup complete')
+    } catch(error) {
+      console.error('Failed to setup anonymous actor:', error)
+      throw error
     }
-
-    this.actor = Actor.createActor(idlFactory, {
-      agent: this.agent,
-      canisterId: BACKEND_CANISTER_ID,
-    })
   }
 
   // Authentication Methods
   async login() {
     try {
-      await this.authClient.login({
-        identityProvider: import.meta.env.VITE_DFX_NETWORK === 'local' 
-          ? `http://localhost:4943/?canisterId=${import.meta.env.VITE_INTERNET_IDENTITY_CANISTER_ID}`
-          : 'https://identity.ic0.app',
-        onSuccess: async () => {
-          this.isAuthenticated = true
-          await this.setupActor()
-          await this.getCurrentUser()
-        },
+      // Use LOCAL Internet Identity for development with local backend
+      const identityProvider = import.meta.env.VITE_DFX_NETWORK === 'local'
+        ? `http://rdmx6-jaaaa-aaaaa-aaadq-cai.localhost:8000/`
+        : 'https://identity.ic0.app'
+
+      console.log('Logging in with Internet Identity at:', identityProvider)
+
+      return new Promise((resolve) => {
+        this.authClient.login({
+          identityProvider,
+          maxTimeToLive: BigInt(7 * 24 * 60 * 60 * 1000 * 1000 * 1000), // 7 days
+          onSuccess: async () => {
+            console.log('Login successful')
+            this.isAuthenticated = true
+            
+            // CRITICAL: Re-setup actor with new authenticated identity
+            await this.setupActor()
+            
+            resolve(true)
+          },
+          onError: (err) => {
+            console.error('Login error:', err)
+            resolve(false)
+          }
+        })
       })
-      return true
     } catch (error) {
       console.error('Login failed:', error)
       return false
@@ -342,6 +422,8 @@ class ApiService {
       await this.authClient.logout()
       this.isAuthenticated = false
       this.currentUser = null
+      this.actor = null
+      this.agent = null
       await this.setupAnonymousActor()
       return true
     } catch (error) {
@@ -387,17 +469,23 @@ class ApiService {
     
     try {
       const principal = this.getPrincipal()
+      console.log('Getting user for principal:', principal.toString())
+      
+      // Add a small delay to ensure actor is properly set up
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
       const result = await this.actor.getUser(principal)
       
       if ('Ok' in result) {
         this.currentUser = result.Ok
+        console.log('Current user loaded:', this.currentUser)
         return this.currentUser
       } else {
-        console.log('User not found, needs registration')
+        console.log('User not found, needs registration:', result.Err)
         return null
       }
     } catch (error) {
-      console.error('Failed to get current user:', error)
+      console.warn('Failed to get current user (this is often normal for new users):', error.message || error)
       return null
     }
   }
@@ -406,6 +494,9 @@ class ApiService {
     if (!this.isAuthenticated) throw new Error('Must be authenticated to register')
     
     try {
+      // Add a small delay to ensure actor is properly set up
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
       const result = await this.actor.registerUser(userData)
       
       if ('Ok' in result) {
@@ -453,7 +544,7 @@ class ApiService {
     }
   }
 
-  // Repository Management Methods
+  // Repository Management Methods (rest remains the same)
   async createRepository(repoData) {
     if (!this.isAuthenticated) throw new Error('Must be authenticated to create repository')
     
