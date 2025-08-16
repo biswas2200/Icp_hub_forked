@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-
 import type { Repository } from '../services/repositoryService'
 import { repositoryService } from '../services/repositoryService'
 import PageLayout from './PageLayout'
@@ -7,10 +6,11 @@ import ProfileModal from './ProfileModal'
 import './RepositoryDetail.css'
 
 interface RepositoryDetailProps {
+  repositoryId: string  // Add repositoryId prop
   onBack: () => void
 }
 
-function RepositoryDetail({ onBack }: RepositoryDetailProps) {
+function RepositoryDetail({ repositoryId, onBack }: RepositoryDetailProps) {
   const [repository, setRepository] = useState<Repository | null>(null)
   const [creator, setCreator] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -22,8 +22,11 @@ function RepositoryDetail({ onBack }: RepositoryDetailProps) {
     const fetchRepositoryDetail = async () => {
       try {
         setLoading(true)
-        // Fetch repository details
-        const repoData = await repositoryService.getRepository('1') // Replace with actual ID
+        setError(null)
+        
+        // Use the repositoryId prop instead of hardcoded '1'
+        console.log('Fetching repository with ID:', repositoryId)
+        const repoData = await repositoryService.getRepository(repositoryId)
         setRepository(repoData)
         
         // Fetch creator profile (mock data for now)
@@ -43,15 +46,21 @@ function RepositoryDetail({ onBack }: RepositoryDetailProps) {
           contributions: 234
         })
       } catch (err) {
-        setError('Failed to load repository details')
         console.error('Error fetching repository:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load repository details')
       } finally {
         setLoading(false)
       }
     }
 
-    fetchRepositoryDetail()
-  }, [])
+    // Only fetch if we have a repositoryId
+    if (repositoryId) {
+      fetchRepositoryDetail()
+    } else {
+      setError('No repository ID provided')
+      setLoading(false)
+    }
+  }, [repositoryId]) // Re-fetch when repositoryId changes
 
   if (loading) {
     return (
@@ -76,6 +85,7 @@ function RepositoryDetail({ onBack }: RepositoryDetailProps) {
     )
   }
 
+  // Rest of the component remains the same...
   return (
     <PageLayout>
       <div className="repository-detail-page">
@@ -466,4 +476,4 @@ npm start</code></pre>
   )
 }
 
-export default RepositoryDetail 
+export default RepositoryDetail

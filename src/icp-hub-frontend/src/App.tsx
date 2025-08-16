@@ -9,7 +9,11 @@ import WalletConnectionModal from './components/WalletConnectionModal'
 function AppContent() {
   const [currentSection, setCurrentSection] = useState<'home' | 'repositories' | 'governance' | 'documentation'>('home')
   const [showWalletModal, setShowWalletModal] = useState(false)
-  const { wallet, disconnect } = useWallet()
+  const walletContext = useWallet()
+
+  // Safe access to wallet with fallback
+  const wallet = walletContext?.wallet || { connected: false, principal: '', walletType: 'none' }
+  const disconnect = walletContext?.disconnect || (() => {})
 
   return (
     <div className="okh-root">
@@ -43,7 +47,12 @@ function AppContent() {
           {wallet.connected ? (
             <div className="okh-wallet-info">
               <span className="okh-wallet-type">{wallet.walletType}</span>
-              <span className="okh-wallet-address">{wallet.principal.slice(0, 8)}...{wallet.principal.slice(-4)}</span>
+              <span className="okh-wallet-address">
+                {wallet.principal && wallet.principal.length > 8 
+                  ? `${wallet.principal.slice(0, 8)}...${wallet.principal.slice(-4)}`
+                  : wallet.principal
+                }
+              </span>
               <button className="okh-disconnect-btn" onClick={disconnect}>
                 Disconnect
               </button>
@@ -158,13 +167,13 @@ function AppContent() {
             </div>
           </main>
         </>
-                        ) : currentSection === 'repositories' ? (
-                    <Repositories />
-                  ) : currentSection === 'governance' ? (
-                    <Governance />
-                  ) : currentSection === 'documentation' ? (
-                    <Documentation />
-                  ) : null}
+      ) : currentSection === 'repositories' ? (
+        <Repositories />
+      ) : currentSection === 'governance' ? (
+        <Governance />
+      ) : currentSection === 'documentation' ? (
+        <Documentation />
+      ) : null}
 
       {/* Footer */}
       <footer className="okh-footer">

@@ -21,7 +21,7 @@ class ApiService {
   private authToken?: string
 
   constructor() {
-    this.baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+    this.baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4943'
     this.timeout = 10000
   }
 

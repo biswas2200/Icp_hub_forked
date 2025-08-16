@@ -1,28 +1,31 @@
 import { createContext, useContext, useState, useEffect } from 'react'
-import apiService from './api'
+import apiService from './api.js'
 
-// Wallet Context
-const WalletContext = createContext()
+// Create the WalletContext
+const WalletContext = createContext(null)
 
 // Custom hook to use wallet context
 export const useWallet = () => {
   const context = useContext(WalletContext)
   if (!context) {
-    throw new Error('useWallet must be used within a WalletProvider')
+    console.warn('useWallet called outside of WalletProvider, returning default values')
+    return {
+      wallet: { connected: false, principal: '', walletType: 'none' },
+      disconnect: () => {},
+      connect: async () => ({ success: false })
+    }
   }
   return context
 }
 
-// Authentication types
-export const AUTH_TYPES = {
-  INTERNET_IDENTITY: 'internet_identity',
-}
-
-// Wallet Provider Component  
+// Wallet Provider Component
 export const WalletProvider = ({ children }) => {
-  const [isConnected, setIsConnected] = useState(false)
-  const [currentUser, setCurrentUser] = useState(null)
-  const [principal, setPrincipal] = useState(null)
+  const [wallet, setWallet] = useState({
+    connected: false,
+    principal: '',
+    accountId: '',
+    walletType: 'none'
+  })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -32,16 +35,36 @@ export const WalletProvider = ({ children }) => {
 
   const initializeAuth = async () => {
     try {
-      setLoading(false)
-      const initialized = await apiService.init()
+      console.log('Initializing authentication...')
+      setLoading(true)
+      setError(null)
       
-      if (initialized && apiService.isAuthenticated) {
-        const user = await apiService.getCurrentUser()
-        const userPrincipal = apiService.getPrincipal()
-        
-        setIsConnected(true)
-        setCurrentUser(user)
-        setPrincipal(userPrincipal?.toString())
+      // Initialize API service
+      await apiService.init()
+      
+      if (apiService.isAuthenticated) {
+        const principal = apiService.getPrincipal()
+        if (principal) {
+          const principalText = principal.toString()
+          
+          setWallet({
+            connected: true,
+            principal: principalText,
+            accountId: principalText,
+            walletType: 'internet_identity'
+          })
+          
+          // Try to get existing user
+          const currentUser = await apiService.getCurrentUser()
+          
+          if (!currentUser) {
+            console.log('User not authenticated')
+          } else {
+            console.log('User already authenticated:', principalText)
+          }
+        }
+      } else {
+        console.log('User not authenticated')
       }
     } catch (error) {
       console.error('Auth initialization failed:', error)
@@ -56,17 +79,56 @@ export const WalletProvider = ({ children }) => {
       setLoading(true)
       setError(null)
       
-      const success = await apiService.login()
+      console.log('Starting Internet Identity connection...')
       
-      if (success) {
-        const user = await apiService.getCurrentUser()
-        const userPrincipal = apiService.getPrincipal()
+      // Use apiService to handle Internet Identity login
+      const loginSuccess = await apiService.login()
+      
+      if (loginSuccess) {
+        const principal = apiService.getPrincipal()
+        const principalText = principal.toString()
         
-        setIsConnected(true)
-        setCurrentUser(user)
-        setPrincipal(userPrincipal?.toString())
+        // Check if user exists
+        let currentUser = await apiService.getCurrentUser()
         
-        return { success: true, principal: userPrincipal?.toString() }
+        if (!currentUser) {
+          console.log('User not found, registering new user...')
+          
+          // Register new user
+          const registerResult = await apiService.registerUser({
+            username: `user_${principalText.slice(0, 8)}`,
+            email: [],
+            profile: {
+              displayName: [],
+              bio: [],
+              avatar: [],
+              location: [],
+              website: [],
+              socialLinks: {
+                twitter: [],
+                github: [],
+                linkedin: []
+              }
+            }
+          })
+          
+          if (registerResult.success) {
+            currentUser = registerResult.data
+            console.log('User registered successfully:', currentUser.username)
+          } else {
+            throw new Error('Failed to register user: ' + apiService.getErrorMessage(registerResult.error))
+          }
+        }
+        
+        setWallet({
+          connected: true,
+          principal: principalText,
+          accountId: principalText,
+          walletType: 'internet_identity'
+        })
+        
+        console.log('Internet Identity connected successfully:', principalText)
+        return { success: true, principal: principalText }
       } else {
         throw new Error('Failed to connect with Internet Identity')
       }
@@ -79,21 +141,25 @@ export const WalletProvider = ({ children }) => {
     }
   }
 
-  const disconnectWallet = async () => {
+  const disconnect = async () => {
     try {
       setLoading(true)
       setError(null)
       
-      const success = await apiService.logout()
+      console.log('Disconnecting wallet...')
       
-      if (success) {
-        setIsConnected(false)
-        setCurrentUser(null)
-        setPrincipal(null)
-        return { success: true }
-      } else {
-        throw new Error('Failed to disconnect')
-      }
+      // Use apiService to handle logout
+      await apiService.logout()
+      
+      setWallet({
+        connected: false,
+        principal: '',
+        accountId: '',
+        walletType: 'none'
+      })
+      
+      console.log('Disconnected successfully')
+      return { success: true }
     } catch (error) {
       console.error('Disconnect failed:', error)
       setError(error.message)
@@ -114,55 +180,27 @@ export const WalletProvider = ({ children }) => {
     return typeof window !== 'undefined'
   }
 
-const login = async () => {
-  setLoading(true);
-  setError(null);
-  
-  try {
-    await authClient.login({
-      identityProvider: import.meta.env.VITE_DFX_NETWORK === 'local' 
-        ? `http://localhost:4943?canisterId=${import.meta.env.VITE_INTERNET_IDENTITY_CANISTER_ID}`
-        : 'https://identity.ic0.app',
-      onSuccess: async () => {
-        setIsConnected(true);
-        const identity = authClient.getIdentity();
-        const principal = identity.getPrincipal();
-        setPrincipal(principal);
-        
-        // Now fetch the user profile
-        try {
-          const userResult = await apiService.getUser(principal);
-          if (userResult.success) {
-            setCurrentUser(userResult.data);
-          } else {
-            // Handle new user registration flow
-            console.log("User not found in system, needs registration");
-          }
-        } catch (err) {
-          console.error("Failed to fetch user profile:", err);
-        }
-      },
-    });
-  } catch (err) {
-    setError(`Authentication failed: ${err.message}`);
-  } finally {
-    setLoading(false);
-  }
-};
-
   const value = {
-    isConnected,
-    currentUser,
-    principal,
-    address: principal,
+    // Wallet state
+    wallet,
     loading,
     error,
+    
+    // Authentication methods
+    connect: connectInternetIdentity,
     connectInternetIdentity,
-    disconnectWallet,
-    setError,
+    disconnect,
+    
+    // Utility methods
     formatAddress,
     isAuthAvailable,
-    AUTH_TYPES
+    
+    // For backward compatibility
+    isConnected: wallet.connected,
+    currentUser: wallet.connected ? { principal: wallet.principal } : null,
+    principal: wallet.principal,
+    address: wallet.principal,
+    setError
   }
 
   return (

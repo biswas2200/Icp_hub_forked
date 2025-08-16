@@ -137,4 +137,4 @@ function WalletConnectionModal({ isOpen, onClose }: WalletConnectionModalProps) 
   )
 }
 
-export default WalletConnectionModal 
+export default WalletConnectionModal

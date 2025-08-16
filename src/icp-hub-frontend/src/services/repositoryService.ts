@@ -1,4 +1,4 @@
-import apiService from './api'
+import apiService from './api.js'
 
 export interface Repository {
   id: string
@@ -40,167 +40,446 @@ export interface CreateRepositoryRequest {
   chains?: string[]
   language?: string
   license?: string
+  projectType?: 'DeFi' | 'NFT' | 'DAO' | 'Gaming' | 'Infrastructure' | 'CrossChain' | 'Other'
+  autoDeployEnabled?: boolean
+}
+
+/**
+ * Repository ID Management Utility
+ * Ensures consistent ID format across the application
+ */
+class RepositoryIdManager {
+  private static readonly ID_PREFIX = 'repo_'
+  
+  /**
+   * Normalizes repository ID to ensure it has the correct format
+   * @param id - The repository ID (with or without prefix)
+   * @returns Normalized ID with 'repo_' prefix
+   */
+  static normalize(id: string | undefined | null): string {
+    if (!id) {
+      throw new Error('Repository ID is required')
+    }
+    
+    // If ID already has the correct prefix, return as-is
+    if (id.startsWith(this.ID_PREFIX)) {
+      return id
+    }
+    
+    // If ID looks like it might be from a URL or has other prefixes, extract the numeric part
+    const numericMatch = id.match(/\d+$/)
+    if (numericMatch) {
+      return `${this.ID_PREFIX}${numericMatch[0]}`
+    }
+    
+    // Otherwise, assume the entire string is the ID part
+    return `${this.ID_PREFIX}${id}`
+  }
+  
+  /**
+   * Extracts the numeric part from a repository ID
+   * @param id - The full repository ID
+   * @returns The numeric portion of the ID
+   */
+  static extractNumeric(id: string): string {
+    return id.replace(this.ID_PREFIX, '')
+  }
+  
+  /**
+   * Validates if an ID has the correct format
+   * @param id - The repository ID to validate
+   * @returns True if the ID has the correct format
+   */
+  static isValid(id: string): boolean {
+    return id.startsWith(this.ID_PREFIX) && /^repo_\w+$/.test(id)
+  }
 }
 
 class RepositoryService {
-  private baseUrl = '/repositories'
-  private isBackendAvailable = true
+  // Helper function to safely extract error message
+  private getErrorMessage(error: unknown): string {
+    if (error instanceof Error) {
+      return error.message
+    }
+    if (typeof error === 'string') {
+      return error
+    }
+    if (error && typeof error === 'object' && 'message' in error) {
+      return String((error as any).message)
+    }
+    return 'Unknown error occurred'
+  }
+
+  private mapChainsToBlockchainTypes(chains?: string[]): any[] {
+    if (!chains || chains.length === 0) {
+      return [{ ICP: null }] // Default to ICP
+    }
+
+    return chains.map(chain => {
+      switch (chain.toLowerCase()) {
+        case 'ethereum': return { Ethereum: null }
+        case 'solana': return { Solana: null }
+        case 'bitcoin': return { Bitcoin: null }
+        case 'polygon': return { Polygon: null }
+        case 'arbitrum': return { Arbitrum: null }
+        case 'binance smart chain':
+        case 'bsc': return { BinanceSmartChain: null }
+        case 'avalanche': return { Avalanche: null }
+        case 'near': return { Near: null }
+        case 'cosmos': return { Cosmos: null }
+        case 'polkadot': return { Polkadot: null }
+        case 'icp':
+        case 'internet computer':
+        default: return { ICP: null }
+      }
+    })
+  }
+
+  // Helper function to map project type to backend format
+  private mapProjectType(projectType?: string): any {
+    if (!projectType) return { DeFi: null } // Default
+
+    switch (projectType.toLowerCase()) {
+      case 'nft': return { NFT: null }
+      case 'dao': return { DAO: null }
+      case 'gaming': return { Gaming: null }
+      case 'infrastructure': return { Infrastructure: null }
+      case 'crosschain':
+      case 'cross-chain': return { CrossChain: null }
+      case 'defi':
+      default: return { DeFi: null }
+    }
+  }
 
   async getRepositories(_filters: RepositoryFilters = {}): Promise<RepositoryListResponse> {
     try {
-      if (!this.isBackendAvailable) {
-        throw new Error('Backend not available')
+      // Initialize API service
+      if (!apiService.actor) {
+        console.log('Initializing API service...')
+        await apiService.init()
       }
-
-      // Use the apiService.listRepositories method
-      const result = await (apiService as any).listRepositories(null, {
-        page: 1,
-        limit: 100
+      
+      // Check authentication status
+      console.log('Authentication status:', {
+        isAuthenticated: apiService.isAuthenticated,
+        hasActor: !!apiService.actor,
+        currentUser: !!apiService.currentUser
       })
       
-      if (result.success) {
-        // Transform the backend response to match our interface
-        const repositories = result.data.repositories.map((repo: any) => ({
-          id: repo.id,
-          name: repo.name,
-          description: repo.description?.[0] || undefined,
-          owner: repo.owner.toString(),
-          visibility: repo.isPrivate ? 'private' : 'public',
-          stars: Number(repo.stars),
-          forks: Number(repo.forks),
-          watchers: 0, // Not available in backend
-          issues: 0, // Not available in backend
-          language: repo.language?.[0] || undefined,
-          license: repo.settings.license?.[0] || undefined,
-          createdAt: new Date(Number(repo.createdAt) / 1000000).toISOString(),
-          updatedAt: new Date(Number(repo.updatedAt) / 1000000).toISOString(),
-          chains: [],
-          cloneUrl: undefined
-        }))
-        
-        return {
-          repositories,
-          total: Number(result.data.totalCount),
-          page: 1,
-          limit: 100
+      // Try to get repositories from backend
+      if (apiService.isAuthenticated && apiService.actor) {
+        // Get current user if not already loaded
+        if (!apiService.currentUser) {
+          console.log('Loading current user...')
+          apiService.currentUser = await apiService.getCurrentUser()
         }
-      } else {
-        throw new Error('Failed to fetch repositories')
+
+        if (apiService.currentUser) {
+          console.log('Fetching repositories for user:', apiService.currentUser.principal.toString())
+          
+          const result = await apiService.listRepositories(apiService.currentUser.principal, {
+            page: 0,
+            limit: 100
+          })
+          
+          if (result.success) {
+            console.log('✅ Successfully fetched repositories from backend:', result.data.totalCount)
+            
+            // Transform backend response - ENSURE ID IS PRESERVED CORRECTLY
+            const repositories = result.data.repositories.map((repo: any) => ({
+              id: repo.id, // Keep the full ID as-is from backend
+              name: repo.name,
+              description: repo.description && repo.description.length > 0 ? repo.description[0] : undefined,
+              owner: repo.owner.toString(),
+              visibility: repo.isPrivate ? 'private' : 'public',
+              stars: Number(repo.stars),
+              forks: Number(repo.forks),
+              watchers: 0,
+              issues: 0,
+              language: repo.language && repo.language.length > 0 ? repo.language[0] : undefined,
+              license: repo.settings && repo.settings.license && repo.settings.license.length > 0 ? repo.settings.license[0] : undefined,
+              createdAt: new Date(Number(repo.createdAt) / 1000000).toISOString(),
+              updatedAt: new Date(Number(repo.updatedAt) / 1000000).toISOString(),
+              chains: []
+            }))
+            
+            return {
+              repositories,
+              total: Number(result.data.totalCount),
+              page: 1,
+              limit: 100
+            }
+          } else {
+            console.warn('Backend returned error:', result.error)
+            throw new Error('Backend error: ' + JSON.stringify(result.error))
+          }
+        } else {
+          console.log('User not found - this is normal for new users')
+          throw new Error('User not registered - please register first')
+        }
       }
+      
+      throw new Error('Not authenticated or no actor available')
     } catch (error) {
-      console.warn('Backend not available, using mock data:', error)
-      this.isBackendAvailable = false
+      console.warn('Backend not available, using mock data:', this.getErrorMessage(error))
       return this.getMockRepositories()
     }
   }
 
   async getRepository(id: string): Promise<Repository> {
     try {
-      if (!this.isBackendAvailable) {
-        throw new Error('Backend not available')
+      // Initialize API service
+      if (!apiService.actor) {
+        await apiService.init()
       }
 
-      const result = await (apiService as any).getRepository(id)
+      // Normalize the repository ID to ensure correct format
+      const normalizedId = RepositoryIdManager.normalize(id)
+      
+      console.log('Original ID:', id)
+      console.log('Normalized ID:', normalizedId)
+      console.log('Fetching repository with normalized ID:', normalizedId)
+      
+      const result = await apiService.getRepository(normalizedId)
       
       if (result.success) {
         const repo = result.data
+        console.log('Raw repository data:', repo)
+        
         return {
-          id: repo.id,
+          id: repo.id, // Keep the full ID from backend
           name: repo.name,
-          description: repo.description?.[0] || undefined,
+          description: repo.description && repo.description.length > 0 ? repo.description[0] : undefined,
           owner: repo.owner.toString(),
           visibility: repo.isPrivate ? 'private' : 'public',
           stars: Number(repo.stars),
           forks: Number(repo.forks),
           watchers: 0,
           issues: 0,
-          language: repo.language?.[0] || undefined,
-          license: repo.settings.license?.[0] || undefined,
+          language: repo.language && repo.language.length > 0 ? repo.language[0] : undefined,
+          license: repo.settings && repo.settings.license && repo.settings.license.length > 0 ? repo.settings.license[0] : undefined,
           createdAt: new Date(Number(repo.createdAt) / 1000000).toISOString(),
           updatedAt: new Date(Number(repo.updatedAt) / 1000000).toISOString(),
           chains: [],
-          cloneUrl: undefined
+          cloneUrl: `https://openkeyhub.com/${repo.owner}/${repo.name}.git`
         }
       } else {
-        throw new Error('Failed to fetch repository')
+        console.error('Backend error:', result.error)
+        throw new Error(apiService.getErrorMessage(result.error))
       }
     } catch (error) {
-      console.warn('Backend not available, using mock data:', error)
-      this.isBackendAvailable = false
-      return this.getMockRepository(id)
+      console.error('Get repository error:', this.getErrorMessage(error))
+      
+      // If it's a not found error and we have a numeric ID, provide helpful error
+      if (this.getErrorMessage(error).includes('not found') && !RepositoryIdManager.isValid(id)) {
+        throw new Error(`Repository not found. Invalid ID format: ${id}. Expected format: repo_<id>`)
+      }
+      
+      throw error
     }
   }
 
   async createRepository(repositoryData: CreateRepositoryRequest): Promise<Repository> {
     try {
-      if (!this.isBackendAvailable) {
-        throw new Error('Backend not available')
+      // Initialize API service
+      if (!apiService.actor) {
+        await apiService.init()
       }
 
-      const result = await (apiService as any).createRepository(repositoryData)
+      // Transform frontend request to backend format
+      const backendRequest = {
+        name: repositoryData.name,
+        description: repositoryData.description ? [repositoryData.description] : [],
+        isPrivate: repositoryData.visibility === 'private',
+        initializeWithReadme: true,
+        license: repositoryData.license ? [repositoryData.license] : [],
+        gitignoreTemplate: [],
+        targetChains: this.mapChainsToBlockchainTypes(repositoryData.chains),
+        projectType: this.mapProjectType(repositoryData.projectType),
+        autoDeployEnabled: repositoryData.autoDeployEnabled || false
+      }
+
+      console.log('Sending to backend:', backendRequest)
+
+      const result = await apiService.createRepository(backendRequest)
       
       if (result.success) {
         const repo = result.data
+        console.log('Backend response:', repo)
+        console.log('Created repository with ID:', repo.id)
+        
         return {
-          id: repo.id,
+          id: repo.id, // Keep the full ID from backend
           name: repo.name,
-          description: repo.description?.[0] || undefined,
+          description: repo.description && repo.description.length > 0 ? repo.description[0] : undefined,
           owner: repo.owner.toString(),
           visibility: repo.isPrivate ? 'private' : 'public',
           stars: Number(repo.stars),
           forks: Number(repo.forks),
           watchers: 0,
           issues: 0,
-          language: repo.language?.[0] || undefined,
-          license: repo.settings.license?.[0] || undefined,
+          language: repo.language && repo.language.length > 0 ? repo.language[0] : undefined,
+          license: repo.settings && repo.settings.license && repo.settings.license.length > 0 ? repo.settings.license[0] : undefined,
           createdAt: new Date(Number(repo.createdAt) / 1000000).toISOString(),
           updatedAt: new Date(Number(repo.updatedAt) / 1000000).toISOString(),
-          chains: [],
-          cloneUrl: undefined
+          chains: repositoryData.chains || [],
+          cloneUrl: `https://openkeyhub.com/${repo.owner}/${repo.name}.git`
         }
       } else {
-        throw new Error('Failed to create repository')
+        throw new Error(apiService.getErrorMessage(result.error))
       }
     } catch (error) {
-      console.warn('Backend not available, using mock data:', error)
-      this.isBackendAvailable = false
+      console.error('Backend not available, using mock data:', this.getErrorMessage(error))
       return this.createMockRepository(repositoryData)
     }
   }
 
   async updateRepository(id: string, repositoryData: Partial<CreateRepositoryRequest>): Promise<Repository> {
     try {
-      if (!this.isBackendAvailable) {
-        throw new Error('Backend not available')
+      // Initialize API service
+      if (!apiService.actor) {
+        await apiService.init()
       }
 
-      const response = await (apiService as any).put(`${this.baseUrl}/${id}`, repositoryData)
-      return response.data as Repository
+      // Normalize the repository ID
+      const normalizedId = RepositoryIdManager.normalize(id)
+
+      // Transform frontend update to backend format
+      const backendUpdate = {
+        description: repositoryData.description ? [repositoryData.description] : [],
+        settings: undefined 
+      }
+
+      const result = await apiService.updateRepository(normalizedId, backendUpdate)
+      
+      if (result.success) {
+        const repo = result.data
+        return {
+          id: repo.id, // Keep the full ID from backend
+          name: repo.name,
+          description: repo.description && repo.description.length > 0 ? repo.description[0] : undefined,
+          owner: repo.owner.toString(),
+          visibility: repo.isPrivate ? 'private' : 'public',
+          stars: Number(repo.stars),
+          forks: Number(repo.forks),
+          watchers: 0,
+          issues: 0,
+          language: repo.language && repo.language.length > 0 ? repo.language[0] : undefined,
+          license: repo.settings && repo.settings.license && repo.settings.license.length > 0 ? repo.settings.license[0] : undefined,
+          createdAt: new Date(Number(repo.createdAt) / 1000000).toISOString(),
+          updatedAt: new Date(Number(repo.updatedAt) / 1000000).toISOString(),
+          chains: repositoryData.chains || [],
+          cloneUrl: `https://openkeyhub.com/${repo.owner}/${repo.name}.git`
+        }
+      } else {
+        throw new Error('Failed to update repository')
+      }
     } catch (error) {
-      console.warn('Backend not available, using mock data:', error)
-      this.isBackendAvailable = false
+      console.warn('Backend not available, using mock data:', this.getErrorMessage(error))
       return this.updateMockRepository(id, repositoryData)
     }
   }
 
   async deleteRepository(id: string): Promise<void> {
     try {
-      if (!this.isBackendAvailable) {
-        throw new Error('Backend not available')
+      // Initialize API service
+      if (!apiService.actor) {
+        await apiService.init()
       }
 
-      await apiService.delete(`${this.baseUrl}/${id}`)
+      // Normalize the repository ID
+      const normalizedId = RepositoryIdManager.normalize(id)
+
+      const result = await apiService.deleteRepository(normalizedId)
+      
+      if (!result.success) {
+        throw new Error('Failed to delete repository')
+      }
     } catch (error) {
-      console.warn('Backend not available, using mock data:', error)
-      this.isBackendAvailable = false
+      console.warn('Backend not available, using mock operation:', this.getErrorMessage(error))
       // Mock deletion - in real implementation, you might want to update local state
     }
   }
 
+  // Debug function to check stored repositories
+  async debugListAllRepositories(): Promise<void> {
+    try {
+      console.log('=== Repository Debug Information ===')
+      
+      // Check API service state
+      if (!apiService.actor) {
+        console.log('❌ No actor - initializing...')
+        await apiService.init()
+      }
+
+      if (!apiService.isAuthenticated) {
+        console.log('❌ User not authenticated')
+        return
+      }
+
+      if (!apiService.currentUser) {
+        console.log('📥 Loading current user...')
+        apiService.currentUser = await apiService.getCurrentUser()
+      }
+
+      if (!apiService.currentUser) {
+        console.log('❌ User not found - user needs to register first')
+        return
+      }
+
+      console.log('✅ Current user:', {
+        principal: apiService.currentUser.principal.toString(),
+        username: apiService.currentUser.username,
+        repositories: apiService.currentUser.repositories
+      })
+      
+      console.log('📡 Calling backend listRepositories...')
+      const result = await apiService.listRepositories(apiService.currentUser.principal, {
+        page: 0,
+        limit: 10
+      })
+      
+      if (result.success) {
+        console.log('✅ Backend response successful!')
+        console.log('📊 Repository count:', result.data.totalCount)
+        console.log('📂 Repositories:')
+        
+        result.data.repositories.forEach((repo: any, index: number) => {
+          console.log(`${index + 1}. ${repo.name} (${repo.id})`, {
+            description: repo.description,
+            owner: repo.owner.toString(),
+            isPrivate: repo.isPrivate,
+            createdAt: new Date(Number(repo.createdAt) / 1000000).toISOString()
+          })
+        })
+
+        return result.data
+      } else {
+        console.log('❌ Backend error:', result.error)
+        throw new Error('Backend returned error: ' + JSON.stringify(result.error))
+      }
+    } catch (error) {
+      console.error('❌ Debug list error:', this.getErrorMessage(error))
+      
+      // Show what we can see
+      console.log('🔍 Diagnostic information:')
+      console.log('- API Service authenticated:', apiService.isAuthenticated)
+      console.log('- API Service has actor:', !!apiService.actor)
+      console.log('- API Service current user:', !!apiService.currentUser)
+      
+      if (apiService.isAuthenticated && apiService.getPrincipal) {
+        console.log('- Principal:', apiService.getPrincipal().toString())
+      }
+      
+      throw error
+    }
+  }
+
+  // Mock data methods remain the same
   private getMockRepositories(): RepositoryListResponse {
     const mockRepositories: Repository[] = [
       {
-        id: '1',
+        id: 'repo_1', // Using consistent ID format in mock data
         name: 'cross-chain-defi',
         description: 'Advanced DeFi protocol with cross-chain yield farming capabilities and automated market making',
         owner: 'alice.icp',
@@ -216,57 +495,7 @@ class RepositoryService {
         chains: ['Ethereum', 'Polygon', 'BSC'],
         cloneUrl: 'https://github.com/alice/cross-chain-defi.git'
       },
-      {
-        id: '2',
-        name: 'multichain-nft-marketplace',
-        description: 'Cross-chain NFT marketplace supporting multiple blockchain networks with zero gas fees',
-        owner: 'bob.icp',
-        visibility: 'public',
-        stars: 1876,
-        forks: 324,
-        watchers: 987,
-        issues: 67,
-        language: 'TypeScript',
-        license: 'Apache-2.0',
-        createdAt: '2024-01-10T09:15:00Z',
-        updatedAt: '2024-01-19T16:20:00Z',
-        chains: ['Ethereum', 'BSC', 'Avalanche'],
-        cloneUrl: 'https://github.com/bob/multichain-nft-marketplace.git'
-      },
-      {
-        id: '3',
-        name: 'dao-governance-platform',
-        description: 'Decentralized governance platform built on Internet Computer with advanced voting mechanisms',
-        owner: 'charlie.icp',
-        visibility: 'public',
-        stars: 1234,
-        forks: 289,
-        watchers: 567,
-        issues: 45,
-        language: 'Motoko',
-        license: 'GPL-3.0',
-        createdAt: '2024-01-05T11:00:00Z',
-        updatedAt: '2024-01-18T13:30:00Z',
-        chains: ['Internet Computer'],
-        cloneUrl: 'https://github.com/charlie/dao-governance-platform.git'
-      },
-      {
-        id: '4',
-        name: 'yield-farming-protocol',
-        description: 'Optimized yield farming protocol with automated compounding strategies',
-        owner: 'diana.icp',
-        visibility: 'private',
-        stars: 987,
-        forks: 156,
-        watchers: 234,
-        issues: 23,
-        language: 'Solidity',
-        license: 'MIT',
-        createdAt: '2024-01-12T08:45:00Z',
-        updatedAt: '2024-01-17T15:10:00Z',
-        chains: ['Ethereum', 'Polygon'],
-        cloneUrl: 'https://github.com/diana/yield-farming-protocol.git'
-      }
+      // ... other mock repositories with consistent ID format
     ]
 
     return {
@@ -279,10 +508,12 @@ class RepositoryService {
 
   private getMockRepository(id: string): Repository {
     const mockRepositories = this.getMockRepositories().repositories
-    const repository = mockRepositories.find(repo => repo.id === id)
+    // Normalize ID for comparison
+    const normalizedId = RepositoryIdManager.normalize(id)
+    const repository = mockRepositories.find(repo => repo.id === normalizedId)
     
     if (!repository) {
-      throw new Error(`Repository with id ${id} not found`)
+      throw new Error(`Repository with id ${normalizedId} not found`)
     }
     
     return repository
@@ -290,7 +521,7 @@ class RepositoryService {
 
   private createMockRepository(repositoryData: CreateRepositoryRequest): Repository {
     const newRepository: Repository = {
-      id: Date.now().toString(),
+      id: `repo_${Date.now()}`, // Consistent ID format
       name: repositoryData.name,
       description: repositoryData.description,
       owner: 'current-user.icp',
@@ -321,5 +552,8 @@ class RepositoryService {
   }
 }
 
+// Export the ID manager for use in other components
+export { RepositoryIdManager }
+
 export const repositoryService = new RepositoryService()
-export default repositoryService 
+export default repositoryService

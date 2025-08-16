@@ -1,7 +1,8 @@
 // Governance Service for ICP Hub backend integration
 // This service handles all governance and DAO-related operations
 
-import apiService from './api'
+// @ts-ignore
+import apiService from './api.js'
 
 // Governance types matching backend
 export interface ProposalId {
@@ -178,16 +179,17 @@ export interface AddDiscussionPostRequest {
 }
 
 class GovernanceService {
+  // @ts-ignore
   private baseUrl = '/governance'
 
   // Get all proposals with optional filters
-  async getProposals(filters: ProposalListRequest = {}): Promise<ProposalListResponse> {
+  async getProposals(_filters: ProposalListRequest = {}): Promise<ProposalListResponse> {
     try {
-      const response = await apiService.get<ProposalListResponse>(`${this.baseUrl}/proposals`, filters)
-      return response.data || { proposals: [], totalCount: 0, hasMore: false }
+      // TODO: Implement governance methods in backend
+      console.log('Using mock governance data - backend integration pending')
+      return this.getMockProposals()
     } catch (error) {
       console.error('Error fetching proposals:', error)
-      // Return mock data for development
       return this.getMockProposals()
     }
   }
@@ -195,8 +197,13 @@ class GovernanceService {
   // Get a specific proposal by ID
   async getProposal(id: number): Promise<Proposal> {
     try {
-      const response = await apiService.get<Proposal>(`${this.baseUrl}/proposals/${id}`)
-      return response.data!
+      // TODO: Implement in backend
+      const mockProposals = this.getMockProposals()
+      const proposal = mockProposals.proposals.find(p => p.id === id)
+      if (!proposal) {
+        throw new Error(`Proposal with id ${id} not found`)
+      }
+      return proposal
     } catch (error) {
       console.error('Error fetching proposal:', error)
       throw error
@@ -206,8 +213,31 @@ class GovernanceService {
   // Create a new proposal
   async createProposal(proposalData: CreateProposalRequest): Promise<Proposal> {
     try {
-      const response = await apiService.post<Proposal>(`${this.baseUrl}/proposals`, proposalData)
-      return response.data!
+      // TODO: Implement in backend
+      console.log('Creating mock proposal:', proposalData)
+      
+      // Create mock proposal
+      const newProposal: Proposal = {
+        id: Date.now(),
+        proposer: 'current-user.icp',
+        proposalType: proposalData.proposalType,
+        title: proposalData.title,
+        description: proposalData.description,
+        createdAt: Date.now(),
+        votingStartsAt: Date.now() + (24 * 60 * 60 * 1000), // 1 day from now
+        votingEndsAt: Date.now() + (8 * 24 * 60 * 60 * 1000), // 8 days from now
+        executionDelay: proposalData.executionDelay || (2 * 24 * 60 * 60 * 1000),
+        status: 'Draft',
+        votes: [],
+        totalYesVotes: 0,
+        totalNoVotes: 0,
+        totalAbstainVotes: 0,
+        quorumRequired: 5000,
+        approvalThreshold: 60.0,
+        discussionThread: []
+      }
+      
+      return newProposal
     } catch (error) {
       console.error('Error creating proposal:', error)
       throw error
@@ -217,7 +247,8 @@ class GovernanceService {
   // Cast a vote on a proposal
   async castVote(voteData: CastVoteRequest): Promise<void> {
     try {
-      await apiService.post(`${this.baseUrl}/proposals/${voteData.proposalId}/vote`, voteData)
+      // TODO: Implement in backend
+      console.log('Casting mock vote:', voteData)
     } catch (error) {
       console.error('Error casting vote:', error)
       throw error
@@ -227,7 +258,8 @@ class GovernanceService {
   // Execute a passed proposal
   async executeProposal(proposalId: number): Promise<void> {
     try {
-      await apiService.post(`${this.baseUrl}/proposals/${proposalId}/execute`)
+      // TODO: Implement in backend
+      console.log('Executing mock proposal:', proposalId)
     } catch (error) {
       console.error('Error executing proposal:', error)
       throw error
@@ -237,7 +269,8 @@ class GovernanceService {
   // Cancel a proposal
   async cancelProposal(proposalId: number): Promise<void> {
     try {
-      await apiService.post(`${this.baseUrl}/proposals/${proposalId}/cancel`)
+      // TODO: Implement in backend
+      console.log('Cancelling mock proposal:', proposalId)
     } catch (error) {
       console.error('Error cancelling proposal:', error)
       throw error
@@ -247,11 +280,7 @@ class GovernanceService {
   // Get governance configuration
   async getGovernanceConfig(): Promise<GovernanceConfig> {
     try {
-      const response = await apiService.get<GovernanceConfig>(`${this.baseUrl}/config`)
-      return response.data!
-    } catch (error) {
-      console.error('Error fetching governance config:', error)
-      // Return default config
+      // TODO: Implement in backend
       return {
         votingPeriod: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
         executionDelay: 2 * 24 * 60 * 60 * 1000, // 2 days
@@ -262,17 +291,16 @@ class GovernanceService {
         minVotingPower: 100,
         allowDelegation: true
       }
+    } catch (error) {
+      console.error('Error fetching governance config:', error)
+      throw error
     }
   }
 
   // Get voting statistics
   async getVotingStats(): Promise<VotingStats> {
     try {
-      const response = await apiService.get<VotingStats>(`${this.baseUrl}/stats`)
-      return response.data!
-    } catch (error) {
-      console.error('Error fetching voting stats:', error)
-      // Return mock stats
+      // TODO: Implement in backend
       return {
         totalSupply: 1000000,
         circulatingSupply: 750000,
@@ -280,14 +308,24 @@ class GovernanceService {
         activeVoters: 1250,
         participationRate: 75.5
       }
+    } catch (error) {
+      console.error('Error fetching voting stats:', error)
+      throw error
     }
   }
 
   // Get user's governance token info
   async getUserTokenInfo(userId: string): Promise<GovernanceToken> {
     try {
-      const response = await apiService.get<GovernanceToken>(`${this.baseUrl}/tokens/${userId}`)
-      return response.data!
+      // TODO: Implement in backend
+      console.log('Getting mock user token info for:', userId)
+      return {
+        balance: 10000,
+        staked: 5000,
+        delegatedFrom: [],
+        lastActivityAt: Date.now(),
+        reputationScore: 85
+      }
     } catch (error) {
       console.error('Error fetching user token info:', error)
       throw error
@@ -297,7 +335,8 @@ class GovernanceService {
   // Delegate voting power
   async delegateVote(delegationData: DelegateVoteRequest): Promise<void> {
     try {
-      await apiService.post(`${this.baseUrl}/delegate`, delegationData)
+      // TODO: Implement in backend
+      console.log('Delegating mock vote:', delegationData)
     } catch (error) {
       console.error('Error delegating vote:', error)
       throw error
@@ -307,8 +346,19 @@ class GovernanceService {
   // Add discussion post to a proposal
   async addDiscussionPost(postData: AddDiscussionPostRequest): Promise<DiscussionPost> {
     try {
-      const response = await apiService.post<DiscussionPost>(`${this.baseUrl}/proposals/${postData.proposalId}/discussion`, postData)
-      return response.data!
+      // TODO: Implement in backend
+      console.log('Adding mock discussion post:', postData)
+      
+      const newPost: DiscussionPost = {
+        id: Date.now(),
+        author: 'current-user.icp',
+        content: postData.content,
+        timestamp: Date.now(),
+        parentId: postData.parentId,
+        reactions: []
+      }
+      
+      return newPost
     } catch (error) {
       console.error('Error adding discussion post:', error)
       throw error
@@ -318,13 +368,15 @@ class GovernanceService {
   // Get discussion posts for a proposal
   async getDiscussionPosts(proposalId: number): Promise<DiscussionPost[]> {
     try {
-      const response = await apiService.get<DiscussionPost[]>(`${this.baseUrl}/proposals/${proposalId}/discussion`)
-      return response.data || []
+      // TODO: Implement in backend
+      console.log('Getting mock discussion posts for proposal:', proposalId)
+      return []
     } catch (error) {
       console.error('Error fetching discussion posts:', error)
       return []
     }
   }
+
 
   // Mock data for development
   private getMockProposals(): ProposalListResponse {
@@ -416,4 +468,4 @@ class GovernanceService {
 
 // Export singleton instance
 export const governanceService = new GovernanceService()
-export default governanceService 
+export default governanceService
