@@ -179,6 +179,7 @@ export interface AddDiscussionPostRequest {
 }
 
 class GovernanceService {
+  // @ts-ignore
   private baseUrl = '/governance'
 
   // Get all proposals with optional filters
