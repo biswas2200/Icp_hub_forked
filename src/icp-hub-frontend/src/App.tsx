@@ -1,15 +1,68 @@
 import './App.css'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Repositories from './components/Repositories'
 import Governance from './components/Governance'
 import Documentation from './components/Documentation'
 import { WalletProvider, useWallet } from './services/walletService'
 import WalletConnectionModal from './components/WalletConnectionModal'
+import UnifiedSearch from './components/UnifiedSearch'
+import SearchResults from './components/SearchResults'
+import type { SearchType, SearchResult } from './types'
 
 function AppContent() {
   const [currentSection, setCurrentSection] = useState<'home' | 'repositories' | 'governance' | 'documentation'>('home')
   const [showWalletModal, setShowWalletModal] = useState(false)
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
+  const [showSearchResults, setShowSearchResults] = useState(false)
+  const [currentSearchQuery, setCurrentSearchQuery] = useState('')
+  const [currentSearchType, setCurrentSearchType] = useState<SearchType>('all')
   const walletContext = useWallet()
+
+    const handleSearch = (query: string, type: SearchType) => {
+    console.log(`Searching for: "${query}" in category: ${type}`)
+    setCurrentSearchQuery(query)
+    setCurrentSearchType(type)
+    
+    // Mock search results for demonstration
+    const mockResults: SearchResult[] = [
+      {
+        id: '1',
+        title: `Search result for "${query}"`,
+        description: `This is a mock search result for the query "${query}" in the ${type} category.`,
+        type: type,
+        url: '#',
+        metadata: { category: type, relevance: 'high' }
+      },
+      {
+        id: '2',
+        title: `Another result for "${query}"`,
+        description: `Additional search result showing how the search functionality works.`,
+        type: type,
+        url: '#',
+        metadata: { category: type, relevance: 'medium' }
+      }
+    ]
+    
+    setSearchResults(mockResults)
+    setShowSearchResults(true)
+  }
+
+  const closeSearchResults = () => {
+    setShowSearchResults(false)
+    setSearchResults([])
+  }
+
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && showSearchResults) {
+        closeSearchResults()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [showSearchResults])
 
   // Safe access to wallet with fallback
   const wallet = walletContext?.wallet || { connected: false, principal: '', walletType: 'none' }
@@ -21,6 +74,15 @@ function AppContent() {
       <nav className="okh-nav">
         <div className="okh-nav-container">
           <a href="#" className="okh-logo" onClick={() => setCurrentSection('home')}>OpenKeyHub</a>
+          
+          <div className="okh-nav-center">
+            <UnifiedSearch 
+              onSearch={handleSearch} 
+              className="navbar-search" 
+              placeholder="Search repositories, code, users, files..."
+            />
+          </div>
+          
           <div className="okh-nav-links">
             <a
               href="#repositories"
@@ -186,6 +248,15 @@ function AppContent() {
       <WalletConnectionModal
         isOpen={showWalletModal}
         onClose={() => setShowWalletModal(false)}
+      />
+
+      {/* Search Results Modal */}
+      <SearchResults
+        results={searchResults}
+        query={currentSearchQuery}
+        searchType={currentSearchType}
+        isVisible={showSearchResults}
+        onClose={closeSearchResults}
       />
     </div>
   )
