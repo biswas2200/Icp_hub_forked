@@ -228,6 +228,24 @@ const idlFactory = ({ IDL }) => {
     'hasMore': IDL.Bool,
   })
 
+  // FIXED: Use IDL.Rec instead of IDL.Recursive
+  const FileTreeNode = IDL.Rec()
+  FileTreeNode.fill(
+    IDL.Record({
+      'path': IDL.Text,
+      'name': IDL.Text,
+      'isFolder': IDL.Bool,
+      'size': IDL.Opt(IDL.Nat),
+      'lastModified': IDL.Opt(IDL.Int),
+      'children': IDL.Opt(IDL.Vec(FileTreeNode))
+    })
+  )
+
+  const FileTreeResponse = IDL.Record({
+    'nodes': IDL.Vec(FileTreeNode),
+    'rootPath': IDL.Text
+  })
+
   return IDL.Service({
     // User Management
     'registerUser': IDL.Func([CreateUserRequest], [Result(User, Error)], []),
@@ -270,6 +288,13 @@ const idlFactory = ({ IDL }) => {
     'getFile': IDL.Func([IDL.Text, IDL.Text], [Result(FileEntry, Error)], ['query']),
     'listFiles': IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [Result(FileListResponse, Error)], ['query']),
     'deleteFile': IDL.Func([IDL.Text, IDL.Text], [Result(IDL.Bool, Error)], []),
+    
+    // File Tree
+    'getFileTree': IDL.Func(
+      [IDL.Text, IDL.Opt(IDL.Text)], 
+      [Result(FileTreeResponse, Error)], 
+      ['query']
+    ),
 
     // Search Methods
     'search': IDL.Func([SearchRequest], [Result(SearchResults, Error)], []),
@@ -278,10 +303,59 @@ const idlFactory = ({ IDL }) => {
 
     // System
     'health': IDL.Func([], [IDL.Bool], ['query']),
+    
+    // Public Repository Methods
+    'listPublicRepositories': IDL.Func(
+      [IDL.Opt(PaginationParams)], 
+      [Result(RepositoryListResponse, Error)], 
+      ['query']
+    ),
+    
+    'searchPublicRepositories': IDL.Func(
+      [IDL.Text, IDL.Opt(PaginationParams)], 
+      [Result(RepositoryListResponse, Error)], 
+      ['query']
+    ),
+    
+    'getRepositoryStats': IDL.Func(
+      [], 
+      [IDL.Record({
+        'totalRepositories': IDL.Nat,
+        'publicRepositories': IDL.Nat,
+        'totalUsers': IDL.Nat,
+        'totalStars': IDL.Nat,
+        'totalForks': IDL.Nat,
+      })], 
+      ['query']
+    ),
+    
+    'getGlobalStats': IDL.Func(
+      [], 
+      [IDL.Record({
+        'totalRepositories': IDL.Nat,
+        'publicRepositories': IDL.Nat,
+        'totalUsers': IDL.Nat,
+        'totalStars': IDL.Nat,
+        'totalForks': IDL.Nat,
+      })], 
+      ['query']
+    ),
+    
+    // Repository specific stats
+    'getRepositoryDetailsStats': IDL.Func(
+      [IDL.Text], 
+      [Result(IDL.Record({
+        'totalCommits': IDL.Nat,
+        'totalBranches': IDL.Nat,
+        'totalFiles': IDL.Nat,
+        'contributors': IDL.Vec(IDL.Principal),
+        'languages': IDL.Vec(IDL.Text),
+      }), Error)], 
+      ['query']
+    )
   })
 }
 
-// API Service Class
 class ApiService {
   constructor() {
     this.authClient = null
@@ -291,7 +365,6 @@ class ApiService {
     this.agent = null
   }
 
-  // Initialize the service
   async init() {
     try {
       this.authClient = await AuthClient.create()
@@ -299,7 +372,6 @@ class ApiService {
       
       if (this.isAuthenticated) {
         await this.setupActor()
-        // Don't auto-fetch user on init to avoid signature issues
       } else {
         // Create anonymous actor for public operations
         await this.setupAnonymousActor()
@@ -312,7 +384,6 @@ class ApiService {
     }
   }
 
-  // Setup authenticated actor
   async setupActor() {
     try { 
       const identity = this.authClient.getIdentity()
@@ -351,7 +422,6 @@ class ApiService {
     }
   }
 
-  // Setup anonymous actor for public operations
   async setupAnonymousActor() {
     try {
       this.agent = new HttpAgent({
@@ -382,7 +452,6 @@ class ApiService {
     }
   }
 
-  // Authentication Methods
   async login() {
     try {
       // Use LOCAL Internet Identity for development with local backend
@@ -437,7 +506,6 @@ class ApiService {
     return this.authClient.getIdentity().getPrincipal()
   }
 
-  // Backend login (separate from Internet Identity)
   async backendLogin() {
     try {
       const result = await this.actor.login()
@@ -463,7 +531,6 @@ class ApiService {
     }
   }
 
-  // User Management Methods
   async getCurrentUser() {
     if (!this.isAuthenticated) return null
     
@@ -544,7 +611,6 @@ class ApiService {
     }
   }
 
-  // Repository Management Methods (rest remains the same)
   async createRepository(repoData) {
     if (!this.isAuthenticated) throw new Error('Must be authenticated to create repository')
     
@@ -627,7 +693,6 @@ class ApiService {
     }
   }
 
-  // File Management Methods
   async uploadFile(fileData) {
     if (!this.isAuthenticated) throw new Error('Must be authenticated to upload files')
     
@@ -692,7 +757,56 @@ class ApiService {
     }
   }
 
-  // Search Methods
+  async getFileTree(repositoryId, path = null) {
+    try {
+      // If user is not authenticated, return a mock file structure for now
+      if (!this.actor) {
+        // Return a mock file tree for demo purposes
+        return {
+          success: true,
+          data: {
+            rootPath: path || '',
+            nodes: [
+              {
+                path: 'README.md',
+                name: 'README.md',
+                isFolder: false,
+                size: 1024,
+                lastModified: Date.now(),
+              },
+              {
+                path: 'src',
+                name: 'src',
+                isFolder: true,
+                children: [
+                  {
+                    path: 'src/main.mo',
+                    name: 'main.mo',
+                    isFolder: false,
+                    size: 2048,
+                    lastModified: Date.now() - 86400000,
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+
+      // For authenticated users, call the backend
+      const result = await this.actor.getFileTree(repositoryId, path ? [path] : [])
+      
+      if ('Ok' in result) {
+        return { success: true, data: result.Ok }
+      } else {
+        return { success: false, error: result.Err }
+      }
+    } catch (error) {
+      console.error('Failed to get file tree:', error)
+      return { success: false, error: { InternalError: error.message } }
+    }
+  }
+
   async search(searchRequest) {
     try {
       const result = await this.actor.search(searchRequest)
@@ -738,17 +852,15 @@ class ApiService {
     }
   }
 
-  // Utility Methods
   async health() {
     try {
       if (!this.actor) await this.setupAnonymousActor()
-      return await this.actor.health();
+      return await this.actor.health()
     } catch (error) {
-      return false;
+      return false
     }
   }
 
-  // Convert file content to/from Uint8Array
   fileToUint8Array(file) {
     return new Promise((resolve) => {
       const reader = new FileReader()
@@ -769,12 +881,10 @@ class ApiService {
     return Array.from(new TextEncoder().encode(str))
   }
 
-  // Format timestamp for display
   formatTimestamp(timestamp) {
     return new Date(Number(timestamp) / 1000000).toLocaleString()
   }
 
-  // Format file size
   formatFileSize(bytes) {
     if (bytes === 0) return '0 Bytes'
     const k = 1024
@@ -783,7 +893,6 @@ class ApiService {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
-  // Enhanced error handling method
   getErrorMessage(error) {
     if (typeof error === 'string') {
       return error
@@ -813,7 +922,6 @@ class ApiService {
     return 'An unexpected error occurred'
   }
 
-  // Improved authentication check
   async isAuthenticationValid() {
     try {
       if (!this.isAuthenticated || !this.actor) {
@@ -829,7 +937,6 @@ class ApiService {
     }
   }
 
-  // Add retry logic for failed requests
   async retryRequest(requestFn, maxRetries = 3, delay = 1000) {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
@@ -845,6 +952,71 @@ class ApiService {
         // Wait before retrying
         await new Promise(resolve => setTimeout(resolve, delay * attempt))
       }
+    }
+  }
+
+  async listPublicRepositories(pagination = null) {
+    try {
+      const result = await this.actor.listPublicRepositories(pagination ? [pagination] : [])
+      
+      if ('Ok' in result) {
+        return { success: true, data: result.Ok }
+      } else {
+        return { success: false, error: result.Err }
+      }
+    } catch (error) {
+      console.error('Failed to list public repositories:', error)
+      return { success: false, error: { InternalError: error.message } }
+    }
+  }
+
+  async searchPublicRepositories(searchQuery, pagination = null) {
+    try {
+      const result = await this.actor.searchPublicRepositories(searchQuery, pagination ? [pagination] : [])
+      
+      if ('Ok' in result) {
+        return { success: true, data: result.Ok }
+      } else {
+        return { success: false, error: result.Err }
+      }
+    } catch (error) {
+      console.error('Failed to search public repositories:', error)
+      return { success: false, error: { InternalError: error.message } }
+    }
+  }
+
+  async getRepositoryStats() {
+    try {
+      const stats = await this.actor.getRepositoryStats()
+      return { success: true, data: stats }
+    } catch (error) {
+      console.error('Failed to get repository stats:', error)
+      return { success: false, error: { InternalError: error.message } }
+    }
+  }
+
+  async getGlobalStats() {
+    try {
+      const stats = await this.actor.getGlobalStats()
+      return { success: true, data: stats }
+    } catch (error) {
+      console.error('Failed to get global stats:', error)
+      return { success: false, error: { InternalError: error.message } }
+    }
+  }
+
+  async getRepositoryDetailsStats(repositoryId) {
+    try {
+      const result = await this.actor.getRepositoryDetailsStats(repositoryId)
+      
+      if ('Ok' in result) {
+        return { success: true, data: result.Ok }
+      } else {
+        return { success: false, error: result.Err }
+      }
+    } catch (error) {
+      console.error('Failed to get repository details stats:', error)
+      return { success: false, error: { InternalError: error.message } }
     }
   }
 }

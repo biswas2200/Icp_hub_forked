@@ -446,6 +446,9 @@ module GitOperations {
                                 fileType = null;
                                 contractMetadata = null;
                                 targetChain = null;
+                                isFolder = false;
+                                mimeType = null;
+                                parentPath = null;
                             };
 
                             // Then put it in the files HashMap

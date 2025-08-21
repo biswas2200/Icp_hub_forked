@@ -252,6 +252,35 @@ module {
         fileType: ?FileType;
         contractMetadata: ?ContractMetadata;
         targetChain: ?BlockchainType;
+        isFolder: Bool;   
+        mimeType: ?Text;   
+        parentPath: ?Text;
+    };
+
+    // File tree structure for displaying hierarchy
+    public type FileTreeNode = {
+        path: Text;
+        name: Text;
+        isFolder: Bool;
+        size: Nat;
+        lastModified: Int;
+        children: [FileTreeNode]; // Nested structure for folders
+    };
+
+    // Request type for creating folders
+    public type CreateFolderRequest = {
+        repositoryId: Text;
+        folderPath: Text;
+        folderName: Text;
+    };
+
+    // Response type for file tree
+    public type FileTreeResponse = {
+        repositoryId: Text;
+        tree: [FileTreeNode];
+        totalFiles: Nat;
+        totalFolders: Nat;
+        totalSize: Nat;
     };
 
     // Commit type for version control

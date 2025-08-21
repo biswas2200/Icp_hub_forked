@@ -75,28 +75,22 @@ export const WalletProvider = ({ children }) => {
   }
 
   const connectInternetIdentity = async () => {
-    try {
-      setLoading(true)
-      setError(null)
+  console.log('Starting Internet Identity connection...')
+  
+  try {
+    const result = await apiService.login()
+    
+    if (result) {
+      const principal = apiService.getPrincipal()
       
-      console.log('Starting Internet Identity connection...')
-      
-      // Use apiService to handle Internet Identity login
-      const loginSuccess = await apiService.login()
-      
-      if (loginSuccess) {
-        const principal = apiService.getPrincipal()
-        const principalText = principal.toString()
+      if (principal) {
+        // Get or create user
+        let user = await apiService.getCurrentUser()
         
-        // Check if user exists
-        let currentUser = await apiService.getCurrentUser()
-        
-        if (!currentUser) {
-          console.log('User not found, registering new user...')
-          
+        if (!user) {
           // Register new user
           const registerResult = await apiService.registerUser({
-            username: `user_${principalText.slice(0, 8)}`,
+            username: `user_${principal.toText().slice(0, 10)}`,
             email: [],
             profile: {
               displayName: [],
@@ -113,61 +107,71 @@ export const WalletProvider = ({ children }) => {
           })
           
           if (registerResult.success) {
-            currentUser = registerResult.data
-            console.log('User registered successfully:', currentUser.username)
-          } else {
-            throw new Error('Failed to register user: ' + apiService.getErrorMessage(registerResult.error))
+            user = registerResult.data
           }
         }
         
+        // Update wallet state - this should trigger re-renders
         setWallet({
           connected: true,
-          principal: principalText,
-          accountId: principalText,
-          walletType: 'internet_identity'
+          principal: principal.toString(),
+          accountId: principal.toString(),
+          walletType: 'internet_identity',
+          user: user
         })
         
-        console.log('Internet Identity connected successfully:', principalText)
-        return { success: true, principal: principalText }
-      } else {
-        throw new Error('Failed to connect with Internet Identity')
+        console.log('Internet Identity connected successfully:', principal.toString())
+        
+        // Force a re-render by updating React context or emitting an event
+        // If you're using a React context, make sure to update it here
+        // If you're using an event emitter, emit a 'walletConnected' event
+        
+        return true
       }
-    } catch (error) {
-      console.error('Internet Identity connection failed:', error)
-      setError(error.message)
-      return { success: false, error: error.message }
-    } finally {
-      setLoading(false)
     }
+    
+    return false
+  } catch (error) {
+    console.error('Internet Identity connection failed:', error)
+    this.updateWalletState({
+      connected: false,
+      principal: null,
+      accountId: null,
+      provider: null,
+      balance: null,
+      user: null
+    })
+    throw error
   }
+}
 
-  const disconnect = async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      
-      console.log('Disconnecting wallet...')
-      
-      // Use apiService to handle logout
-      await apiService.logout()
-      
-      setWallet({
-        connected: false,
-        principal: '',
-        accountId: '',
-        walletType: 'none'
-      })
-      
-      console.log('Disconnected successfully')
-      return { success: true }
-    } catch (error) {
-      console.error('Disconnect failed:', error)
-      setError(error.message)
-      return { success: false, error: error.message }
-    } finally {
-      setLoading(false)
-    }
+const disconnect = async () => {
+  try {
+    await apiService.logout()
+    
+    // Reset wallet state - this should trigger re-renders
+    setWallet({
+      connected: false,
+      principal: null,
+      accountId: null,
+      provider: null,
+      balance: null,
+      user: null
+    })
+    
+    console.log('Wallet disconnected successfully')
+    
+    // Force a re-render by updating React context or emitting an event
+    // If you're using a React context, make sure to update it here
+    // If you're using an event emitter, emit a 'walletDisconnected' event
+    
+    return true
+  } catch (error) {
+    console.error('Disconnect failed:', error)
+    throw error
   }
+}
+
 
   // Utility functions
   const formatAddress = (addr) => {
