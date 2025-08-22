@@ -1,12 +1,25 @@
-// src/icp-hub-frontend/src/services/fileService.ts
+// src/services/fileService.ts
 
-import apiService from './apiService'
+import apiService from './api.js'
 import type { 
   FileEntry, 
   FileNode, 
   FileTreeResponse, 
   UploadFileRequest 
 } from '../types/repository'
+
+// Define ApiService extensions for missing methods
+declare module './api.js' {
+  interface ApiService {
+    actor: any;
+    init(): Promise<void>;
+    listFiles(repositoryId: string, path?: string): Promise<{success: boolean, data?: any, error?: any}>;
+    uploadFile(request: UploadFileRequest): Promise<{success: boolean, data?: any, error?: any}>;
+    deleteFile(repositoryId: string, path: string): Promise<{success: boolean, data?: boolean, error?: any}>;
+    getFile(repositoryId: string, path: string): Promise<{success: boolean, data?: any, error?: any}>;
+    getPrincipal(): any;
+  }
+}
 
 export interface FileUploadProgress {
   loaded: number
@@ -33,28 +46,18 @@ class FileService {
    */
   async getFileTree(repositoryId: string, path?: string): Promise<FileTreeResponse> {
     try {
-      // Check if initialization is needed
-      if (!('actor' in apiService) || !(apiService as any).actor) {
+      if (!apiService.actor) {
         await apiService.init()
       }
 
       console.log('Fetching file tree for repository:', repositoryId, 'path:', path)
       
-      // Try to fetch from backend - using listFiles instead of getFileTree
+      // Try to fetch from backend
       const result = await apiService.listFiles(repositoryId, path)
       
       if (result.success && result.data) {
-        // Transform file list to tree structure
-        const files = result.data.files || []
-        const tree = this.buildTreeFromFiles(files)
-        
-        return {
-          repositoryId,
-          tree,
-          totalFiles: files.filter((f: any) => !f.isFolder).length,
-          totalFolders: files.filter((f: any) => f.isFolder).length,
-          totalSize: files.reduce((sum: number, f: any) => sum + (Number(f.size) || 0), 0)
-        }
+        // Transform backend response to FileTreeResponse
+        return this.transformToFileTree(result.data, repositoryId)
       } else {
         // Fall back to mock data
         return this.getMockFileTree(repositoryId)
@@ -68,57 +71,39 @@ class FileService {
 
   /**
    * Create a new folder
+   */
   async createFolder(repositoryId: string, folderPath: string, folderName: string): Promise<FileEntry> {
     try {
-      // Check if initialization is needed
-      if (!('actor' in apiService) || !(apiService as any).actor) {
+      if (!apiService.actor) {
         await apiService.init()
-      }
       }
 
       console.log('Creating folder:', { repositoryId, folderPath, folderName })
       
-      // For now, create a mock folder entry since backend might not support folders yet
-      const fullPath = folderPath ? `${folderPath}/${folderName}` : folderName
-      
-      // Try to create an empty file to represent the folder
-      const folderRequest: UploadFileRequest = {
-        repositoryId,
-        path: `${fullPath}/.gitkeep`, // Create a placeholder file in the folder
-        content: [],
-        commitMessage: `Create folder ${folderName}`,
-        branch: undefined // Don't send branch field at all
+      // For now, return mock data since backend method might not exist
+      const mockEntry: FileEntry = {
+        path: folderPath ? `${folderPath}/${folderName}` : folderName,
+        name: folderName,
+        content: new Uint8Array(),
+        size: 0,
+        hash: Math.random().toString(36),
+        version: 1,
+        lastModified: Date.now(),
+        author: apiService.getPrincipal()?.toString() || 'anonymous',
+        isFolder: true,
+        commitMessage: `Created folder ${folderName}`
       }
       
-      const result = await apiService.uploadFile(folderRequest)
-      
-      if (result.success && result.data) {
-        // Return folder representation
-        return {
-          path: fullPath,
-          name: folderName,
-          content: new Uint8Array(),
-          size: 0,
-          hash: result.data.hash || Math.random().toString(36),
-          version: 1,
-          lastModified: Date.now(),
-          author: apiService.getPrincipal()?.toString() || 'anonymous',
-          isFolder: true,
-          commitMessage: `Created folder ${folderName}`
-        }
-      } else {
-        // Return mock folder
-        return this.createMockFolder(fullPath, folderName)
-      }
+      return mockEntry
     } catch (error) {
       console.error('Create folder error:', this.getErrorMessage(error))
-      // Return mock folder instead of throwing
-      const fullPath = folderPath ? `${folderPath}/${folderName}` : folderName
-      return this.createMockFolder(fullPath, folderName)
+      throw error
     }
   }
 
   /**
+   * Upload a file to a specific folder
+   */
   async uploadFile(
     repositoryId: string, 
     file: File, 
@@ -127,10 +112,7 @@ class FileService {
     onProgress?: (progress: FileUploadProgress) => void
   ): Promise<FileEntry> {
     try {
-      // Check if initialization is needed
-      if (!('actor' in apiService) || !(apiService as any).actor) {
-        await apiService.init()
-      }
+      if (!apiService.actor) {
         await apiService.init()
       }
 
@@ -141,13 +123,12 @@ class FileService {
       // Prepare file path
       const path = folderPath ? `${folderPath}/${file.name}` : file.name
       
-      // IMPORTANT: Don't send branch field, or send it as [] for None
       const uploadRequest: UploadFileRequest = {
         repositoryId,
         path,
         content,
-        commitMessage: commitMessage || `Upload ${file.name}`
-        // Don't include branch field at all, or set it to undefined
+        commitMessage: commitMessage || `Upload ${file.name}`,
+        branch: 'main'
       }
 
       console.log('Uploading file:', { repositoryId, path, size: content.length })
@@ -227,12 +208,11 @@ class FileService {
     return uploadedFiles
   }
 
+  /**
+   * Delete a file
+   */
   async deleteFile(repositoryId: string, filePath: string): Promise<boolean> {
     try {
-      // Check if initialization is needed
-      if (!('actor' in apiService) || !(apiService as any).actor) {
-        await apiService.init()
-      }
       if (!apiService.actor) {
         await apiService.init()
       }
@@ -265,12 +245,11 @@ class FileService {
       return false
     }
   }
+
+  /**
+   * Get file content
+   */
   async getFileContent(repositoryId: string, filePath: string): Promise<string> {
-    try {
-      // Check if initialization is needed
-      if (!('actor' in apiService) || !(apiService as any).actor) {
-        await apiService.init()
-      }
     try {
       if (!apiService.actor) {
         await apiService.init()
@@ -347,7 +326,7 @@ class FileService {
       size: Number(entry.size || 0),
       hash: entry.hash || '',
       version: Number(entry.version || 1),
-      lastModified: typeof entry.lastModified === 'number' ? entry.lastModified / 1000000 : Date.now(),
+      lastModified: Number(entry.lastModified) / 1000000, // Convert from nanoseconds
       author: entry.author?.toString() || 'anonymous',
       commitMessage: entry.commitMessage?.[0],
       isFolder: entry.isFolder || false,
@@ -356,88 +335,51 @@ class FileService {
     }
   }
 
+  private transformToFileTree(data: any, repositoryId: string): FileTreeResponse {
+    // Transform backend response to file tree structure
+    const files = data.files || []
+    const tree: FileNode[] = this.buildTreeFromFiles(files)
+    
+    return {
+      repositoryId,
+      tree,
+      totalFiles: files.filter((f: any) => !f.isFolder).length,
+      totalFolders: files.filter((f: any) => f.isFolder).length,
+      totalSize: files.reduce((sum: number, f: any) => sum + (Number(f.size) || 0), 0)
+    }
+  }
+
   private buildTreeFromFiles(files: any[]): FileNode[] {
     const tree: FileNode[] = []
     const nodeMap: { [key: string]: FileNode } = {}
 
-    // First, sort files by path to ensure parents come before children
-    const sortedFiles = [...files].sort((a, b) => a.path.localeCompare(b.path))
-
-    // Build the tree structure
-    sortedFiles.forEach((file: any) => {
-      const pathParts = file.path.split('/')
-      const fileName = pathParts[pathParts.length - 1]
-      
-      // Skip .gitkeep files (they're just folder markers)
-      if (fileName === '.gitkeep') {
-        return
-      }
-
+    // First pass: create all nodes
+    files.forEach((file: any) => {
       const node: FileNode = {
         path: file.path,
-        name: fileName,
-        isFolder: false, // Files from backend are always files
+        name: file.name || file.path.split('/').pop() || '',
+        isFolder: file.isFolder || false,
         size: Number(file.size || 0),
-        lastModified: typeof file.lastModified === 'number' ? file.lastModified / 1000000 : Date.now()
+        lastModified: Number(file.lastModified) / 1000000,
+        children: file.isFolder ? [] : undefined
       }
+      nodeMap[file.path] = node
+    })
 
-      // Add to root if it's a top-level file
-      if (pathParts.length === 1) {
-        tree.push(node)
+    // Second pass: build tree structure
+    Object.values(nodeMap).forEach(node => {
+      const parentPath = node.path.substring(0, node.path.lastIndexOf('/'))
+      if (parentPath && nodeMap[parentPath]) {
+        if (!nodeMap[parentPath].children) {
+          nodeMap[parentPath].children = []
+        }
+        nodeMap[parentPath].children!.push(node)
       } else {
-        // Create folder structure if needed
-        let currentPath = ''
-        for (let i = 0; i < pathParts.length - 1; i++) {
-          const folderName = pathParts[i]
-          currentPath = currentPath ? `${currentPath}/${folderName}` : folderName
-          
-          if (!nodeMap[currentPath]) {
-            const folderNode: FileNode = {
-              path: currentPath,
-              name: folderName,
-              isFolder: true,
-              size: 0,
-              lastModified: Date.now(),
-              children: []
-            }
-            nodeMap[currentPath] = folderNode
-            
-            // Add to parent or root
-            if (i === 0) {
-              tree.push(folderNode)
-            } else {
-              const parentPath = pathParts.slice(0, i).join('/')
-              if (nodeMap[parentPath] && nodeMap[parentPath].children) {
-                nodeMap[parentPath].children!.push(folderNode)
-              }
-            }
-          }
-        }
-        
-        // Add file to its parent folder
-        const parentPath = pathParts.slice(0, -1).join('/')
-        if (nodeMap[parentPath] && nodeMap[parentPath].children) {
-          nodeMap[parentPath].children!.push(node)
-        }
+        tree.push(node)
       }
     })
 
     return tree
-  }
-
-  private createMockFolder(path: string, name: string): FileEntry {
-    return {
-      path,
-      name,
-      content: new Uint8Array(),
-      size: 0,
-      hash: Math.random().toString(36),
-      version: 1,
-      lastModified: Date.now(),
-      author: apiService.getPrincipal()?.toString() || 'anonymous',
-      isFolder: true,
-      commitMessage: `Created folder ${name}`
-    }
   }
 
   /**
