@@ -297,13 +297,18 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [wallet, setWallet] = useState<WalletInfo>(defaultWallet)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  
+  console.log('WalletProvider initialized with wallet:', wallet)
 
   // Check for existing connections on mount
   useEffect(() => {
     let mounted = true
     
+    console.log('WalletProvider useEffect triggered')
+    
     const initConnections = async () => {
       if (mounted) {
+        console.log('Checking existing connections...')
         await checkExistingConnections()
       }
     }
@@ -317,16 +322,21 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const checkExistingConnections = async () => {
     try {
+      console.log('Starting to check existing connections...')
       // Check Plug Wallet
       if (await walletService.initPlugWallet()) {
+        console.log('Plug wallet initialized, checking connection...')
         const isConnected = await (window as any).ic.plug.isConnected()
+        console.log('Plug wallet connected:', isConnected)
         if (isConnected) {
           const walletInfo = await walletService.connectPlugWallet()
+          console.log('Setting wallet info:', walletInfo)
           setWallet(walletInfo)
           return
         }
       }
       
+      console.log('No existing connections found, using default wallet')
       // Check other wallet types if needed
       // Add checks for other wallet types here
     } catch (error) {
@@ -391,6 +401,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     isLoading,
     error
   }
+  
+  console.log('WalletProvider value created:', value)
 
   return (
     <WalletContext.Provider value={value}>
@@ -403,7 +415,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 export function useWallet(): WalletContextType {
   const context = useContext(WalletContext)
   if (context === undefined) {
-    throw new Error('useWallet must be used within a WalletProvider')
+    console.error('useWallet must be used within a WalletProvider')
+    // Return a default context instead of throwing
+    return {
+      wallet: defaultWallet,
+      connect: async () => false,
+      disconnect: async () => {},
+      isLoading: false,
+      error: 'Wallet context not available'
+    }
   }
   return context
 }

@@ -2,7 +2,18 @@
 :root {
   /* Dynamic clearance to account for sticky navbar height across dimensions */
   --nav-clearance: clamp(64px, calc(56px + 2vw), 104px);
+  --gradient-primary: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  --gradient-secondary: linear-gradient(135deg, #10b981, #34d399);
+  --gradient-danger: linear-gradient(135deg, #ef4444, #f97316);
+  --gradient-text: linear-gradient(135deg, #e2e8f0, #cbd5e1);
+  --shadow-glow: 0 0 20px rgba(59, 130, 246, 0.15);
+  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.3);
+  --shadow-hover: 0 12px 40px rgba(59, 130, 246, 0.2);
+  --shadow-text: 0 2px 4px rgba(0, 0, 0, 0.5);
+  --border-radius: 16px;
+  --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
 .documentation-page {
   width: 100%;
   min-height: 100vh;
@@ -11,36 +22,77 @@
   flex-direction: column;
   padding: 0;
   margin: 0;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  background: 
+    radial-gradient(circle at 20% 80%, rgba(59, 130, 246, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(147, 51, 234, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.05) 0%, transparent 70%),
+    linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
   padding-top: var(--nav-clearance);
+  position: relative;
+  overflow-x: hidden;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.6;
 }
 
 /* Full-width header */
 .documentation-header {
   width: 100%;
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(147, 51, 234, 0.1) 100%);
-  border-bottom: 1px solid rgba(59, 130, 246, 0.2);
-  padding: clamp(40px, 6vw, 80px) clamp(16px, 4vw, 48px);
+  background: 
+    linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(147, 51, 234, 0.12) 100%),
+    radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.08) 0%, transparent 70%);
+  border-bottom: 2px solid rgba(59, 130, 246, 0.2);
+  padding: clamp(32px, 5vw, 64px) clamp(20px, 4vw, 40px);
   text-align: center;
   scroll-margin-top: var(--nav-clearance);
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.documentation-header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(circle at 30% 20%, rgba(59, 130, 246, 0.05) 0%, transparent 50%),
+    radial-gradient(circle at 70% 80%, rgba(147, 51, 234, 0.05) 0%, transparent 50%);
+  pointer-events: none;
 }
 
 .documentation-title {
-  font-size: clamp(32px, 5vw, 56px);
-  font-weight: 700;
+  font-size: clamp(28px, 5vw, 48px);
+  font-weight: 900;
   margin: 0 0 clamp(16px, 2vw, 24px) 0;
-  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  background: var(--gradient-primary);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  position: relative;
+  text-shadow: var(--shadow-text);
+  animation: titleGlow 3s ease-in-out infinite alternate;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+@keyframes titleGlow {
+  0% { filter: drop-shadow(0 0 5px rgba(59, 130, 246, 0.3)); }
+  100% { filter: drop-shadow(0 0 20px rgba(59, 130, 246, 0.6)); }
 }
 
 .documentation-subtitle {
-  font-size: clamp(16px, 2vw, 20px);
-  color: #94a3b8;
+  font-size: clamp(16px, 1.8vw, 18px);
+  color: #e2e8f0;
   margin: 0 auto;
-  max-width: clamp(600px, 60vw, 800px);
+  max-width: clamp(600px, 60vw, 700px);
   line-height: 1.6;
+  font-weight: 500;
+  text-shadow: var(--shadow-text);
+  opacity: 0.9;
+  letter-spacing: 0.01em;
 }
 
 /* Full-width container */
@@ -56,57 +108,105 @@
 
 /* Full-width sidebar */
 .documentation-sidebar {
-  width: clamp(280px, 22vw, 400px);
-  background: rgba(30, 41, 59, 0.8);
-  border-right: 1px solid rgba(59, 130, 246, 0.2);
-  padding: clamp(32px, 4vw, 64px) 0;
-  backdrop-filter: blur(20px);
+  width: clamp(260px, 22vw, 360px);
+  background: 
+    linear-gradient(180deg, rgba(30, 41, 59, 0.98) 0%, rgba(15, 23, 42, 0.96) 100%);
+  border-right: 2px solid rgba(59, 130, 246, 0.2);
+  padding: clamp(24px, 3.5vw, 48px) 0;
+  backdrop-filter: blur(25px);
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: clamp(12px, 1.5vw, 16px);
+  gap: clamp(10px, 1.2vw, 14px);
   position: sticky;
   top: var(--nav-clearance);
   height: fit-content;
   max-height: calc(100vh - var(--nav-clearance));
   overflow-y: auto;
+  box-shadow: 6px 0 25px rgba(0, 0, 0, 0.15);
+  position: relative;
+}
+
+.documentation-sidebar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 1px;
+  height: 100%;
+  background: linear-gradient(180deg, transparent, rgba(59, 130, 246, 0.5), transparent);
 }
 
 .doc-nav-item {
   display: flex;
   align-items: center;
-  gap: clamp(16px, 2vw, 20px);
+  gap: clamp(14px, 1.8vw, 18px);
   width: 100%;
-  padding: clamp(16px, 2vw, 24px) clamp(20px, 2.5vw, 40px);
+  padding: clamp(14px, 2vw, 20px) clamp(18px, 2.5vw, 32px);
   background: none;
   border: none;
-  color: #94a3b8;
-  font-size: clamp(15px, 1.3vw, 18px);
+  color: #cbd5e1;
+  font-size: clamp(14px, 1.3vw, 16px);
   font-weight: 500;
   cursor: pointer;
   text-align: left;
   border-left: 4px solid transparent;
-  transition: all 0.3s ease;
+  transition: var(--transition);
   border-radius: 0 12px 12px 0;
   margin-right: 8px;
+  position: relative;
+  overflow: hidden;
+  letter-spacing: 0.01em;
+}
+
+.doc-nav-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.05), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+}
+
+.doc-nav-item:hover::before {
+  transform: translateX(0);
 }
 
 .doc-nav-item:hover {
   color: #3b82f6;
   background: rgba(59, 130, 246, 0.1);
+  transform: translateX(4px);
 }
 
 .doc-nav-item.active {
   color: #3b82f6;
-  background: rgba(59, 130, 246, 0.15);
+  background: 
+    linear-gradient(90deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.05) 100%);
   font-weight: 600;
   border-left-color: #3b82f6;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+  box-shadow: var(--shadow-glow);
+  transform: translateX(4px);
+}
+
+.doc-nav-item.active::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-left: 8px solid #3b82f6;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
 }
 
 .doc-nav-icon {
-  font-size: clamp(20px, 1.8vw, 28px);
-  width: clamp(28px, 2.5vw, 32px);
+  font-size: clamp(16px, 1.5vw, 22px);
+  width: clamp(22px, 2vw, 26px);
   text-align: center;
   flex-shrink: 0;
   display: flex;
@@ -124,13 +224,15 @@
   flex: 1;
   /* Ensure content clears sticky navbar */
   margin-top: 0;
-  padding: clamp(16px, 2vw, 24px) clamp(16px, 3vw, 32px);
+  padding: clamp(20px, 2.5vw, 32px) clamp(20px, 3vw, 40px);
   overflow-y: auto;
-  background: rgba(15, 23, 42, 0.3);
+  background: 
+    linear-gradient(135deg, rgba(15, 23, 42, 0.4) 0%, rgba(30, 41, 59, 0.2) 100%);
   min-height: calc(100vh - var(--nav-clearance));
   display: flex;
   flex-direction: column;
   width: 100%;
+  backdrop-filter: blur(10px);
 }
 
 .documentation-main {
@@ -142,17 +244,19 @@
 }
 
 .content-title {
-  font-size: clamp(28px, 3.5vw, 48px);
-  font-weight: 700;
-  margin: 0 0 clamp(32px, 4vw, 48px) 0;
-  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  font-size: clamp(24px, 3vw, 36px);
+  font-weight: 800;
+  margin: 0 0 clamp(16px, 2vw, 20px) 0;
+  background: var(--gradient-primary);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  text-shadow: var(--shadow-text);
   position: relative;
-  padding-bottom: 20px;
+  padding-bottom: 16px;
   line-height: 1.2;
+  animation: titleSlideIn 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: -0.01em;
 }
 
 .content-title::after {
@@ -160,37 +264,88 @@
   position: absolute;
   bottom: 0;
   left: 0;
-  width: 80px;
+  width: 100px;
   height: 4px;
-  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  background: var(--gradient-primary);
   border-radius: 2px;
+  animation: underlineExpand 0.8s cubic-bezier(0.4, 0, 0.2, 1) 0.3s both;
+}
+
+@keyframes titleSlideIn {
+  from { 
+    opacity: 0; 
+    transform: translateY(20px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+@keyframes underlineExpand {
+  from { width: 0; }
+  to { width: 100px; }
 }
 
 .content-description {
-  font-size: clamp(18px, 1.8vw, 22px);
+  font-size: clamp(16px, 1.6vw, 18px);
   line-height: 1.7;
-  color: #cbd5e1;
-  margin: 0 0 clamp(40px, 5vw, 60px) 0;
-  background: rgba(59, 130, 246, 0.05);
+  color: #e2e8f0;
+  margin: 0 0 clamp(20px, 2.5vw, 24px) 0;
+  background: 
+    linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(147, 51, 234, 0.08) 100%);
   border-left: 4px solid #3b82f6;
-  padding: clamp(20px, 2.5vw, 32px) clamp(24px, 3vw, 40px);
-  border-radius: 0 12px 12px 0;
-  backdrop-filter: blur(5px);
-  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.1);
+  padding: clamp(16px, 2vw, 24px) clamp(20px, 2.5vw, 28px);
+  border-radius: 0 16px 16px 0;
+  backdrop-filter: blur(15px);
+  box-shadow: 0 10px 30px rgba(59, 130, 246, 0.2);
+  position: relative;
+  animation: descriptionFadeIn 0.8s cubic-bezier(0.4, 0, 0.2, 1) 0.2s both;
+  overflow: hidden;
+  letter-spacing: 0.01em;
+}
+
+.content-description::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.02), transparent);
+  transform: translateX(-100%);
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+@keyframes descriptionFadeIn {
+  from { 
+    opacity: 0; 
+    transform: translateY(15px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+@keyframes shimmer {
+  0%, 100% { transform: translateX(-100%); }
+  50% { transform: translateX(100%); }
 }
 
 /* Prerequisites section */
 .prerequisites-section {
-  background: rgba(16, 185, 129, 0.15);
-  border: 2px solid rgba(16, 185, 129, 0.3);
-  border-radius: 16px;
-  padding: clamp(32px, 4vw, 48px);
-  margin: clamp(40px, 5vw, 64px) 0 clamp(48px, 6vw, 72px) 0; /* Increased margin to prevent overlap */
-  backdrop-filter: blur(10px);
-  box-shadow: 0 8px 32px rgba(16, 185, 129, 0.1);
+  background: 
+    linear-gradient(135deg, rgba(16, 185, 129, 0.18) 0%, rgba(52, 211, 153, 0.12) 100%);
+  border: 2px solid rgba(16, 185, 129, 0.25);
+  border-radius: var(--border-radius);
+  padding: clamp(20px, 2.5vw, 28px);
+  margin: clamp(20px, 2.5vw, 28px) 0 clamp(24px, 3vw, 32px) 0;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 12px 40px rgba(16, 185, 129, 0.15);
   position: relative;
   overflow: hidden;
-  z-index: 1; /* Ensure proper stacking */
+  z-index: 1;
 }
 
 .prerequisites-section::before {
@@ -205,13 +360,14 @@
 
 .section-title {
   color: #10b981;
-  font-size: clamp(22px, 2.5vw, 32px);
+  font-size: clamp(18px, 2.2vw, 24px);
   font-weight: 700;
-  margin: clamp(16px, 2vw, 24px) 0 clamp(28px, 3.5vw, 40px) 0; /* Added top margin for better spacing */
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  margin: clamp(16px, 2vw, 20px) 0 clamp(24px, 3vw, 32px) 0;
+  text-shadow: var(--shadow-text);
   position: relative;
-  padding-left: clamp(28px, 3vw, 40px);
+  padding-left: clamp(24px, 3vw, 32px);
   line-height: 1.3;
+  letter-spacing: 0.01em;
 }
 
 .section-title::before {
@@ -248,24 +404,34 @@
 
 /* Installation section */
 .installation-section {
-  margin: clamp(48px, 6vw, 80px) 0 clamp(56px, 7vw, 88px) 0; /* Increased margin to prevent overlap */
+  margin: clamp(32px, 4vw, 48px) 0 clamp(40px, 5vw, 56px) 0; /* Reduced margin for better spacing */
   position: relative;
   z-index: 1;
 }
 
 .installation-step {
-  background: rgba(30, 41, 59, 0.8);
-  border: 2px solid rgba(59, 130, 246, 0.3);
-  border-radius: 16px;
-  padding: clamp(28px, 3.5vw, 44px);
-  margin: clamp(32px, 4vw, 56px) 0; /* Increased margin between steps */
-  backdrop-filter: blur(20px);
-  transition: all 0.3s ease;
+  background: 
+    linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.9) 100%);
+  border: 2px solid rgba(59, 130, 246, 0.25);
+  border-radius: var(--border-radius);
+  padding: clamp(20px, 2.5vw, 28px);
+  margin: clamp(16px, 2vw, 20px) 0;
+  backdrop-filter: blur(25px);
+  transition: var(--transition);
   position: relative;
   overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-card);
   z-index: 1;
+  animation: stepSlideIn 0.6s cubic-bezier(0.4, 0, 0.2, 1) both;
 }
+
+.installation-step:nth-child(1) { animation-delay: 0.1s; }
+.installation-step:nth-child(2) { animation-delay: 0.2s; }
+.installation-step:nth-child(3) { animation-delay: 0.3s; }
+.installation-step:nth-child(4) { animation-delay: 0.4s; }
+.installation-step:nth-child(5) { animation-delay: 0.5s; }
+.installation-step:nth-child(6) { animation-delay: 0.6s; }
+.installation-step:nth-child(7) { animation-delay: 0.7s; }
 
 .installation-step::before {
   content: '';
@@ -274,7 +440,30 @@
   left: 0;
   width: 4px;
   height: 100%;
-  background: linear-gradient(180deg, #3b82f6, #8b5cf6);
+  background: var(--gradient-primary);
+  transition: all 0.3s ease;
+}
+
+.installation-step:hover {
+  border-color: rgba(59, 130, 246, 0.5);
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-3px);
+}
+
+.installation-step:hover::before {
+  width: 6px;
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.6);
+}
+
+@keyframes stepSlideIn {
+  from { 
+    opacity: 0; 
+    transform: translateX(-30px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateX(0); 
+  }
 }
 
 .installation-step:hover {
@@ -284,13 +473,14 @@
 
 .step-title {
   color: #3b82f6;
-  font-size: clamp(18px, 2vw, 26px);
+  font-size: clamp(16px, 1.8vw, 20px);
   font-weight: 700;
-  margin: 0 0 clamp(20px, 2.5vw, 32px) 0;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  margin: 0 0 clamp(18px, 2.2vw, 26px) 0;
+  text-shadow: var(--shadow-text);
   position: relative;
-  padding-left: clamp(24px, 2.5vw, 32px);
+  padding-left: clamp(20px, 2.2vw, 26px);
   line-height: 1.4;
+  letter-spacing: 0.01em;
 }
 
 .step-title::before {
@@ -303,17 +493,21 @@
 }
 
 .code-block {
-  background: rgba(15, 23, 42, 0.95);
-  border: 2px solid rgba(59, 130, 246, 0.3);
-  border-radius: 16px;
-  padding: clamp(24px, 3vw, 44px);
-  margin: clamp(28px, 3.5vw, 40px) 0; /* Increased margin to prevent overlap */
+  background: 
+    linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.95) 100%);
+  border: 2px solid rgba(59, 130, 246, 0.25);
+  border-radius: var(--border-radius);
+  padding: clamp(16px, 2vw, 24px);
+  margin: clamp(16px, 2vw, 20px) 0;
   overflow-x: auto;
-  backdrop-filter: blur(10px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(20px);
+  box-shadow: 
+    0 10px 40px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
   position: relative;
   font-size: clamp(14px, 1.2vw, 16px);
   z-index: 1;
+  transition: var(--transition);
 }
 
 .code-block::before {
@@ -322,17 +516,26 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
-  border-radius: 12px 12px 0 0;
+  height: 3px;
+  background: var(--gradient-primary);
+  border-radius: 20px 20px 0 0;
+}
+
+.code-block:hover {
+  border-color: rgba(59, 130, 246, 0.5);
+  box-shadow: 
+    0 12px 40px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
 }
 
 .code-block code {
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  font-size: clamp(12px, 1vw, 16px);
-  line-height: 1.5;
-  color: #e2e8f0;
+  font-family: 'JetBrains Mono', 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: clamp(13px, 1.1vw, 15px);
+  line-height: 1.6;
+  color: #f1f5f9;
   white-space: pre;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 /* Responsive adjustments */
@@ -579,22 +782,42 @@
 
 /* Content Sections */
 .content-section {
-  animation: fadeIn 0.3s ease-in-out;
-  background: rgba(15, 23, 42, 0.6);
-  border-radius: 20px;
-  padding: clamp(32px, 4vw, 48px);
-  margin: clamp(24px, 3vw, 32px) 0 clamp(32px, 4vw, 48px) 0; /* Add top margin to clear navbar */
-  border: 1px solid rgba(59, 130, 246, 0.2);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  animation: fadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  background: 
+    linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.7) 100%);
+  border-radius: var(--border-radius);
+  padding: clamp(20px, 2.5vw, 28px);
+  margin: clamp(16px, 2vw, 20px) 0 clamp(20px, 2.5vw, 24px) 0;
+  border: 2px solid rgba(59, 130, 246, 0.15);
+  backdrop-filter: blur(20px);
+  box-shadow: var(--shadow-card);
   position: relative;
   width: 100%;
-  min-height: 100px;
+  min-height: 80px;
+  transition: var(--transition);
+  overflow: hidden;
+}
+
+.content-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--gradient-primary);
+  border-radius: 24px 24px 0 0;
+}
+
+.content-section:hover {
+  border-color: rgba(59, 130, 246, 0.4);
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-2px);
 }
 
 /* Ensure first content section has proper top spacing */
 .content-section:first-child {
-  margin-top: clamp(32px, 4vw, 48px); /* Extra top margin for first section */
+  margin-top: clamp(20px, 3vw, 32px); /* Reduced top margin for first section */
 }
 
 /* Add visual separator between major sections */
@@ -604,7 +827,7 @@
   width: 100%;
   height: 2px;
   background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.3), transparent);
-  margin: clamp(-16px, -2vw, -8px) 0 clamp(24px, 3vw, 32px) 0;
+  margin: clamp(-12px, -1.5vw, -6px) 0 clamp(16px, 2vw, 20px) 0;
   position: relative;
 }
 
@@ -613,12 +836,59 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Enhanced scrollbar styling */
+.documentation-sidebar::-webkit-scrollbar,
+.documentation-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.documentation-sidebar::-webkit-scrollbar-track,
+.documentation-content::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.3);
+  border-radius: 4px;
+}
+
+.documentation-sidebar::-webkit-scrollbar-thumb,
+.documentation-content::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.6), rgba(147, 51, 234, 0.6));
+  border-radius: 4px;
+  transition: all 0.3s ease;
+}
+
+.documentation-sidebar::-webkit-scrollbar-thumb:hover,
+.documentation-content::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.8), rgba(147, 51, 234, 0.8));
+}
+
+/* Smooth scrolling for the entire page */
+.documentation-page {
+  scroll-behavior: smooth;
+}
+
+/* Enhanced focus states for accessibility */
+.doc-nav-item:focus,
+.installation-step:focus,
+.next-step-card:focus {
+  outline: 2px solid rgba(59, 130, 246, 0.6);
+  outline-offset: 2px;
+}
+
+/* Loading animation for content sections */
+.content-section.loading {
+  animation: contentLoading 1.5s ease-in-out infinite;
+}
+
+@keyframes contentLoading {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
 /* Next Steps Section */
 .next-steps-section {
-  margin: clamp(56px, 7vw, 88px) 0 clamp(40px, 5vw, 64px) 0; /* Increased top margin to prevent overlap */
-  padding: clamp(24px, 3vw, 40px);
+  margin: clamp(24px, 3vw, 32px) 0 clamp(20px, 2.5vw, 24px) 0;
+  padding: clamp(16px, 2vw, 24px);
   background: rgba(30, 41, 59, 0.4);
-  border-radius: 16px;
+  border-radius: 12px;
   border: 1px solid rgba(59, 130, 246, 0.2);
   position: relative;
   z-index: 1;
@@ -627,26 +897,49 @@
 .next-steps-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: clamp(24px, 3vw, 32px);
-  margin-top: clamp(24px, 3vw, 32px);
+  gap: clamp(16px, 2vw, 20px);
+  margin-top: clamp(16px, 2vw, 20px);
   align-items: stretch; /* Ensure cards have equal height */
 }
 
 .next-step-card {
-  background: rgba(59, 130, 246, 0.1);
-  border: 1px solid rgba(59, 130, 246, 0.2);
+  background: 
+    linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(147, 51, 234, 0.08) 100%);
+  border: 1px solid rgba(59, 130, 246, 0.25);
   border-radius: 12px;
-  padding: clamp(20px, 2.5vw, 28px);
-  transition: all 0.3s ease;
-  height: 100%; /* Ensure cards fill grid height */
+  padding: clamp(16px, 2vw, 20px);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  height: 100%;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+}
+
+.next-step-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, transparent, rgba(59, 130, 246, 0.05), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.6s ease;
 }
 
 .next-step-card:hover {
-  background: rgba(59, 130, 246, 0.15);
-  transform: translateY(-2px);
+  background: 
+    linear-gradient(135deg, rgba(59, 130, 246, 0.18) 0%, rgba(147, 51, 234, 0.12) 100%);
+  border-color: rgba(59, 130, 246, 0.4);
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: var(--shadow-hover);
+}
+
+.next-step-card:hover::before {
+  transform: translateX(100%);
 }
 
 .next-step-card h4 {
@@ -665,10 +958,10 @@
 
 /* Tech Stack Section */
 .tech-stack-section {
-  margin: clamp(56px, 7vw, 88px) 0 clamp(48px, 6vw, 72px) 0; /* Increased margin to prevent overlap */
-  padding: clamp(24px, 3vw, 40px);
+  margin: clamp(24px, 3vw, 32px) 0 clamp(20px, 2.5vw, 24px) 0;
+  padding: clamp(16px, 2vw, 24px);
   background: rgba(30, 41, 59, 0.4);
-  border-radius: 16px;
+  border-radius: 12px;
   border: 1px solid rgba(59, 130, 246, 0.2);
   position: relative;
   z-index: 1;
@@ -677,8 +970,8 @@
 .tech-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: clamp(20px, 2.5vw, 28px);
-  margin-top: clamp(24px, 3vw, 32px);
+  gap: clamp(16px, 2vw, 20px);
+  margin-top: clamp(16px, 2vw, 20px);
   align-items: stretch;
 }
 
@@ -715,9 +1008,9 @@
 /* Command Grid */
 .command-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: clamp(24px, 3vw, 32px);
-  margin: clamp(32px, 4vw, 48px) 0;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: clamp(12px, 1.5vw, 16px);
+  margin: clamp(16px, 2vw, 20px) 0;
   align-items: stretch;
 }
 
