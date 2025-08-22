@@ -616,6 +616,9 @@ module RepositoryManager {
                     case (?#SmartContract(info)) ?info.chain;
                     case _ null;
                 };
+                isFolder = false; // This is a file, not a folder
+                mimeType = null; // Could be determined based on file extension
+                parentPath = null; // Could be extracted from the path
             };
 
             repo.files.put(request.path, fileEntry);

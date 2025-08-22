@@ -48,6 +48,24 @@ persistent actor ICPHub {
   type SerializableRepository = Types.SerializableRepository;
   type SerializableSearchResults = Types.SerializableSearchResults;
   type DeploymentRecord = Types.DeploymentRecord;
+  
+  // File tree types
+  type FileTreeNode = {
+    path: Text;
+    name: Text;
+    isFolder: Bool;
+    size: Nat;
+    lastModified: Int;
+    children: [FileTreeNode];
+  };
+  
+  type FileTreeResponse = {
+    repositoryId: Text;
+    tree: [FileTreeNode];
+    totalFiles: Nat;
+    totalFolders: Nat;
+    totalSize: Nat;
+  };
 
   // Collaborator types
   type AddCollaboratorRequest = CollaboratorManager.AddCollaboratorRequest;
@@ -2094,4 +2112,425 @@ persistent actor ICPHub {
         case (#Err(e)) { #Err(e) };
     };
   };
+
+  // List all public repositories without authentication requirement
+  public query func listPublicRepositories(
+    pagination: ?PaginationParams
+  ): async Result<RepositoryListResponse, Error> {
+    let repositories = stateManager.getRepositories();
+    
+    let page = switch (pagination) { 
+      case null 0; 
+      case (?p) p.page 
+    };
+    let limit = switch (pagination) { 
+      case null 20; 
+      case (?p) Nat.min(p.limit, 100) 
+    };
+    let startIndex = page * limit;
+    
+    // Collect all public repositories
+    var publicRepos = Buffer.Buffer<Repository>(0);
+    
+    for ((_, repo) in repositories.entries()) {
+      if (not repo.isPrivate) {
+        publicRepos.add(repo);
+      };
+    };
+    
+    // Sort by updatedAt (most recent first)
+    let sortedRepos = Array.sort<Repository>(
+      Buffer.toArray(publicRepos),
+      func(a, b) {
+        if (a.updatedAt > b.updatedAt) { #less }
+        else if (a.updatedAt < b.updatedAt) { #greater }
+        else { #equal }
+      }
+    );
+    
+    // Apply pagination
+    let totalCount = sortedRepos.size();
+    let endIndex = Nat.min(startIndex + limit, totalCount);
+    let paginatedRepos = if (startIndex >= totalCount) {
+      []
+    } else {
+      Array.tabulate<Repository>(
+        endIndex - startIndex,
+        func(i) { sortedRepos[startIndex + i] }
+      )
+    };
+    
+    let response: RepositoryListResponse = {
+      repositories = Array.map<Repository, SerializableRepository>(
+        paginatedRepos,
+        func(repo) { Types.repositoryToSerializable(repo) }
+      );
+      totalCount = totalCount;
+      hasMore = endIndex < totalCount;
+    };
+    
+    #Ok(response);
+  };
+
+  // Search public repositories without authentication
+  public query func searchPublicRepositories(
+    searchQuery: Text,
+    pagination: ?PaginationParams
+  ): async Result<RepositoryListResponse, Error> {
+    let repositories = stateManager.getRepositories();
+    let lowerQuery = Utils.toLower(searchQuery);
+    
+    let page = switch (pagination) { 
+      case null 0; 
+      case (?p) p.page 
+    };
+    let limit = switch (pagination) { 
+      case null 20; 
+      case (?p) Nat.min(p.limit, 100) 
+    };
+    let startIndex = page * limit;
+    
+    var matchingRepos = Buffer.Buffer<Repository>(0);
+    
+    for ((_, repo) in repositories.entries()) {
+      if (not repo.isPrivate) {
+        let nameMatch = Utils.containsSubstring(Utils.toLower(repo.name), lowerQuery);
+        let descMatch = switch (repo.description) {
+          case null false;
+          case (?desc) Utils.containsSubstring(Utils.toLower(desc), lowerQuery);
+        };
+        
+        if (nameMatch or descMatch) {
+          matchingRepos.add(repo);
+        };
+      };
+    };
+    
+    // Sort by relevance (name matches first, then by update time)
+    let sortedRepos = Array.sort<Repository>(
+      Buffer.toArray(matchingRepos),
+      func(a, b) {
+        let aNameMatch = Utils.containsSubstring(Utils.toLower(a.name), lowerQuery);
+        let bNameMatch = Utils.containsSubstring(Utils.toLower(b.name), lowerQuery);
+        
+        if (aNameMatch and not bNameMatch) { #less }
+        else if (not aNameMatch and bNameMatch) { #greater }
+        else if (a.updatedAt > b.updatedAt) { #less }
+        else if (a.updatedAt < b.updatedAt) { #greater }
+        else { #equal }
+      }
+    );
+    
+    // Apply pagination
+    let totalCount = sortedRepos.size();
+    let endIndex = Nat.min(startIndex + limit, totalCount);
+    let paginatedRepos = if (startIndex >= totalCount) {
+      []
+    } else {
+      Array.tabulate<Repository>(
+        endIndex - startIndex,
+        func(i) { sortedRepos[startIndex + i] }
+      )
+    };
+    
+    let response: RepositoryListResponse = {
+      repositories = Array.map<Repository, SerializableRepository>(
+        paginatedRepos,
+        func(repo) { Types.repositoryToSerializable(repo) }
+      );
+      totalCount = totalCount;
+      hasMore = endIndex < totalCount;
+    };
+    
+    #Ok(response);
+  };
+
+  // Get repository stats without authentication
+    public query func getGlobalStats(): async {
+    totalRepositories: Nat;
+    publicRepositories: Nat;
+    totalUsers: Nat;
+    totalStars: Nat;
+    totalForks: Nat;
+  } {
+    let repositories = stateManager.getRepositories();
+    let users = stateManager.getUsers();
+    
+    var publicCount = 0;
+    var totalStars = 0;
+    var totalForks = 0;
+    
+    for ((_, repo) in repositories.entries()) {
+      if (not repo.isPrivate) {
+        publicCount += 1;
+      };
+      totalStars += repo.stars;
+      totalForks += repo.forks;
+    };
+    
+    {
+      totalRepositories = repositories.size();
+      publicRepositories = publicCount;
+      totalUsers = users.size();
+      totalStars = totalStars;
+      totalForks = totalForks;
+    };
+  };
+  
+  public shared ({ caller }) func createFolder(
+    repositoryId: Text,
+    folderPath: Text,
+    folderName: Text
+): async Result<FileEntry, Error> {
+    let repositories = stateManager.getRepositories();
+    
+    switch (repositories.get(repositoryId)) {
+        case null { #Err(#NotFound("Repository not found")) };
+        case (?repo) {
+            if (not Utils.canWriteRepository(caller, repo)) {
+                return #Err(#Forbidden("No write permission"));
+            };
+            
+            // Validate folder name
+            if (not Utils.isValidFolderName(folderName)) {
+                return #Err(#BadRequest("Invalid folder name"));
+            };
+            
+            // Build full path
+            let fullPath = if (folderPath == "/" or folderPath == "") {
+                folderName
+            } else {
+                folderPath # "/" # folderName
+            };
+            
+            // Check if folder already exists
+            switch (repo.files.get(fullPath)) {
+                case (?existing) {
+                    if (existing.isFolder) {
+                        return #Err(#Conflict("Folder already exists"));
+                    };
+                };
+                case null {};
+            };
+            
+            // Create folder entry
+            let folderEntry: FileEntry = {
+                path = fullPath;
+                content = "";  // Empty text is coerced to an empty Blob
+                size = 0;
+                hash = Utils.generateFileHash(Text.encodeUtf8(fullPath # Int.toText(Time.now())));
+                version = 1;
+                lastModified = Time.now();
+                author = caller;
+                commitMessage = ?("Created folder: " # folderName);
+                isFolder = true;
+                mimeType = null;
+                parentPath = if (folderPath == "/" or folderPath == "") null else ?folderPath;
+                fileType = null;
+                contractMetadata = null;
+                targetChain = null;
+            };
+            
+            // Add folder to repository
+            repo.files.put(fullPath, folderEntry);
+            
+            // Update repository
+            let updatedRepo = {
+                repo with
+                updatedAt = Time.now();
+            };
+            repositories.put(repositoryId, updatedRepo);
+            
+            #Ok(folderEntry);
+        };
+    };
+};
+
+// Get file tree structure for repository
+public query ({ caller }) func getFileTree(
+    repositoryId: Text,
+    path: ?Text
+): async Result<FileTreeResponse, Error> {
+    let repositories = stateManager.getRepositories();
+    
+    switch (repositories.get(repositoryId)) {
+        case null { #Err(#NotFound("Repository not found")) };
+        case (?repo) {
+            if (not Utils.canReadRepository(caller, repo)) {
+                return #Err(#Forbidden("No read permission"));
+            };
+            
+            // Build tree structure
+            let basePath = switch (path) {
+                case null "";
+                case (?p) p;
+            };
+            
+            var totalFiles = 0;
+            var totalFolders = 0;
+            var totalSize: Nat = 0;
+            
+            // First pass: collect all files and folders
+            for ((filePath, file) in repo.files.entries()) {
+                if (basePath == "" or Text.startsWith(filePath, #text basePath)) {
+                    if (file.isFolder) {
+                        totalFolders += 1;
+                    } else {
+                        totalFiles += 1;
+                        totalSize += file.size;
+                    };
+                };
+            };
+            
+            // Build tree structure (simplified for now)
+            let rootNodes = Buffer.Buffer<FileTreeNode>(10);
+            
+            for ((filePath, file) in repo.files.entries()) {
+                if (basePath == "" or filePath == basePath) {
+                    // Root level files/folders
+                    if (Text.contains(filePath, #char '/') == false or filePath == basePath) {
+                        rootNodes.add({
+                            path = file.path;
+                            name = Utils.getFileName(file.path);
+                            isFolder = file.isFolder;
+                            size = file.size;
+                            lastModified = file.lastModified;
+                            children = [];
+                        });
+                    };
+                };
+            };
+            
+            #Ok({
+                repositoryId = repositoryId;
+                tree = Buffer.toArray(rootNodes);
+                totalFiles = totalFiles;
+                totalFolders = totalFolders;
+                totalSize = totalSize;
+            });
+        };
+    };
+};
+
+// Enhanced upload file with folder support
+public shared ({ caller }) func uploadFileToFolder(
+    request: UploadFileRequest,
+    folderPath: ?Text
+): async Result<FileEntry, Error> {
+    let repositories = stateManager.getRepositories();
+    
+    switch (repositories.get(request.repositoryId)) {
+        case null { #Err(#NotFound("Repository not found")) };
+        case (?repo) {
+            if (not Utils.canWriteRepository(caller, repo)) {
+                return #Err(#Forbidden("No write permission"));
+            };
+            
+            // Build full path with folder
+            let fullPath = switch (folderPath) {
+                case null request.path;
+                case (?folder) {
+                    if (folder == "/" or folder == "") {
+                        request.path;
+                    } else {
+                        folder # "/" # request.path;
+                    };
+                };
+            };
+            
+            // Extract file name from path
+            let fileName = Utils.getFileName(request.path);
+            let mimeType = Utils.getMimeType(fileName);
+            
+            let fileEntry: FileEntry = {
+                path = fullPath;
+                content = request.content;
+                size = request.content.size();
+                hash = Utils.generateFileHash(request.content);
+                version = switch (repo.files.get(fullPath)) {
+                    case (?existing) existing.version + 1;
+                    case null 1;
+                };
+                lastModified = Time.now();
+                author = caller;
+                commitMessage = ?request.commitMessage;
+                isFolder = false;
+                mimeType = ?mimeType;
+                parentPath = folderPath;
+                fileType = Utils.detectFileType(fileName, request.content);
+                contractMetadata = null;
+                targetChain = null;
+            };
+            
+            // Add file to repository
+            repo.files.put(fullPath, fileEntry);
+            
+            // Update repository size
+            let updatedRepo = {
+                repo with
+                size = repo.size + fileEntry.size;
+                updatedAt = Time.now();
+            };
+            repositories.put(request.repositoryId, updatedRepo);
+            
+            #Ok(fileEntry);
+        };
+    };
+};
+
+// Delete folder and all its contents
+public shared ({ caller }) func deleteFolder(
+    repositoryId: Text,
+    folderPath: Text
+): async Result<Bool, Error> {
+    let repositories = stateManager.getRepositories();
+    
+    switch (repositories.get(repositoryId)) {
+        case null { #Err(#NotFound("Repository not found")) };
+        case (?repo) {
+            if (not Utils.canWriteRepository(caller, repo)) {
+                return #Err(#Forbidden("No write permission"));
+            };
+            
+            // Check if folder exists
+            switch (repo.files.get(folderPath)) {
+                case null { return #Err(#NotFound("Folder not found")) };
+                case (?folder) {
+                    if (not folder.isFolder) {
+                        return #Err(#BadRequest("Path is not a folder"));
+                    };
+                };
+            };
+            
+            // Delete folder and all contents
+            var deletedSize: Nat = 0;
+            let toDelete = Buffer.Buffer<Text>(10);
+            
+            for ((path, file) in repo.files.entries()) {
+                if (path == folderPath or Text.startsWith(path, #text (folderPath # "/"))) {
+                    toDelete.add(path);
+                    if (not file.isFolder) {
+                        deletedSize += file.size;
+                    };
+                };
+            };
+            
+            // Remove all files and folders
+            for (path in toDelete.vals()) {
+                repo.files.delete(path);
+            };
+            
+            // Update repository
+            let updatedRepo = {
+                repo with
+                size = Nat.sub(repo.size, deletedSize);
+                updatedAt = Time.now();
+            };
+            repositories.put(repositoryId, updatedRepo);
+            
+            #Ok(true);
+        };
+    };
+};
+
 };

@@ -8,7 +8,7 @@ import Result "mo:base/Result";
 import Utils "../utils/utils";
 import Nat "mo:base/Nat";
 import Int "mo:base/Int";
-import Debug "mo:base/Debug";
+import _Debug "mo:base/Debug";
 import Float "mo:base/Float";
 import State "../models/state_model";
 import User "./user_controller";

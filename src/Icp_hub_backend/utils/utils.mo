@@ -12,6 +12,7 @@ import Int "mo:base/Int";
 import Debug "mo:base/Debug";
 import Buffer "mo:base/Buffer";
 import _Nat8 "mo:base/Nat8";
+import HashMap "mo:base/HashMap";
 
 module {
     // helper functions
@@ -310,21 +311,6 @@ module {
                 } else {
                     let extension = textDrop(path, index + 1);
                     ?extension;
-                };
-            };
-        };
-    };
-
-    public func getFileName(path: Text): Text {
-        let lastSlashIndex = rfindCharIndex(path, '/');
-        switch (lastSlashIndex) {
-            case null path;
-            case (?index) {
-                let pathSize : Int = Text.size(path);
-                if (index == pathSize - 1) {
-                    "";
-                } else {
-                    textDrop(path, index + 1);
                 };
             };
         };
@@ -858,5 +844,184 @@ module {
                 };
             };
         };
+    };
+
+    public func isValidFolderName(name: Text): Bool {
+        if (Text.size(name) == 0 or Text.size(name) > 255) {
+            return false;
+        };
+        
+        // Check for invalid characters
+        let invalidChars = ["\\", "/", ":", "*", "?", "\"", "<", ">", "|", "..", "~"];
+        for (invalid in invalidChars.vals()) {
+            if (Text.contains(name, #text invalid)) {
+                return false;
+            };
+        };
+        
+        // Check if name starts or ends with space or dot
+        let chars = Text.toArray(name);
+        if (chars.size() > 0) {
+            let firstChar = chars[0];
+            let lastChar = chars[chars.size() - 1];
+            if (firstChar == ' ' or firstChar == '.' or lastChar == ' ' or lastChar == '.') {
+                return false;
+            };
+        };
+        
+        true;
+    };
+
+    // Get file name from path
+    public func getFileName(path: Text): Text {
+        let parts = Text.split(path, #char '/');
+        let partsArray = Iter.toArray(parts);
+        if (partsArray.size() > 0) {
+            partsArray[partsArray.size() - 1];
+        } else {
+            path;
+        };
+    };
+
+    // Get parent path from full path
+    public func getParentPath(path: Text): ?Text {
+        if (not Text.contains(path, #char '/')) {
+            return null;
+        };
+        
+        let parts = Text.split(path, #char '/');
+        let partsArray = Buffer.fromIter<Text>(parts);
+        
+        if (partsArray.size() <= 1) {
+            return null;
+        };
+        
+        // Remove last element (file/folder name)
+        let _ = partsArray.removeLast();
+        
+        // Join remaining parts
+        var parentPath = "";
+        var first = true;
+        for (part in partsArray.vals()) {
+            if (first) {
+                parentPath := part;
+                first := false;
+            } else {
+                parentPath := parentPath # "/" # part;
+            };
+        };
+        
+        if (parentPath == "") null else ?parentPath;
+    };
+
+    // Get MIME type from file extension
+    public func getMimeType(fileName: Text): Text {
+        let extension = getFileExtension(fileName);
+        
+        switch (extension) {
+            case (?ext) {
+                switch (ext) {
+                    // Text files
+                    case "txt" "text/plain";
+                    case "md" "text/markdown";
+                    case "json" "application/json";
+                    case "xml" "application/xml";
+                    case "yaml" "application/yaml";
+                    case "yml" "application/yaml";
+
+                    // Code files
+                    case "js" "text/javascript";
+                    case "jsx" "text/javascript";
+                    case "ts" "text/typescript";
+                    case "tsx" "text/typescript";
+                    case "mo" "text/x-motoko";
+                    case "rs" "text/x-rust";
+                    case "py" "text/x-python";
+                    case "java" "text/x-java";
+                    case "c" "text/x-c";
+                    case "cpp" "text/x-c++";
+                    case "cc" "text/x-c++";
+                    case "h" "text/x-c";
+                    case "cs" "text/x-csharp";
+                    case "go" "text/x-go";
+                    case "rb" "text/x-ruby";
+                    case "php" "text/x-php";
+                    case "swift" "text/x-swift";
+                    case "kt" "text/x-kotlin";
+                    case "scala" "text/x-scala";
+                    case "r" "text/x-r";
+                    case "sql" "text/x-sql";
+                    case "sh" "text/x-sh";
+                    case "bash" "text/x-sh";
+                    
+                    // Web files
+                    case "html" "text/html";
+                    case "htm" "text/html";
+                    case "css" "text/css";
+                    case "scss" "text/x-scss";
+                    case "sass" "text/x-scss";
+                    case "less" "text/x-less";
+                    
+                    // Config files
+                    case "toml" "application/toml";
+                    case "ini" "text/plain";
+                    case "env" "text/plain";
+                    case "conf" "text/plain";
+                    case "config" "text/plain";
+                    
+                    // Images
+                    case "jpg" "image/jpeg";
+                    case "jpeg" "image/jpeg";
+                    case "png" "image/png";
+                    case "gif" "image/gif";
+                    case "svg" "image/svg+xml";
+                    case "webp" "image/webp";
+                    case "ico" "image/x-icon";
+                    
+                    // Documents
+                    case "pdf" "application/pdf";
+                    case "doc" "application/msword";
+                    case "docx" "application/msword";
+                    case "xls" "application/vnd.ms-excel";
+                    case "xlsx" "application/vnd.ms-excel";
+                    case "ppt" "application/vnd.ms-powerpoint";
+                    case "pptx" "application/vnd.ms-powerpoint";
+
+                    // Archives
+                    case "zip" "application/zip";
+                    case "tar" "application/x-tar";
+                    case "gz" "application/gzip";
+                    case "rar" "application/x-rar";
+                    
+                    // Default
+                    case _ "application/octet-stream";
+                };
+            };
+            case null "application/octet-stream";
+        };
+    };
+
+    // Build file tree from flat file list
+    public func buildFileTree(files: [(Text, Types.FileEntry)]): [Types.FileTreeNode] {
+        // This is a simplified version - you may want to enhance it
+        let root = Buffer.Buffer<Types.FileTreeNode>(10);
+        let processed = HashMap.HashMap<Text, Bool>(files.size(), Text.equal, Text.hash);
+        
+        // First, add all root level items
+        for ((path, file) in files.vals()) {
+            if (not Text.contains(path, #char '/')) {
+                root.add({
+                    path = file.path;
+                    name = getFileName(file.path);
+                    isFolder = file.isFolder;
+                    size = file.size;
+                    lastModified = file.lastModified;
+                    children = [];
+                });
+                processed.put(path, true);
+            };
+        };
+        
+        Buffer.toArray(root);
     };
 };

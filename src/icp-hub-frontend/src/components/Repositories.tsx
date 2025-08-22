@@ -62,8 +62,9 @@ function Repositories() {
         language: undefined,
         license: 'MIT'
       })
+
+      await fetchRepositories()
       
-      setRepositories(prev => [repository, ...prev])
       setShowNewRepoModal(false)
       setSuccessMessage(`Repository "${repository.name}" created successfully!`)
       
