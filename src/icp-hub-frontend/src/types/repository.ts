@@ -1,4 +1,4 @@
-// Update your src/types/repository.ts file with these complete types:
+// src/types/repository.ts
 
 export interface Repository {
   id: string
@@ -16,9 +16,9 @@ export interface Repository {
   createdAt: string | number
   updatedAt: string | number
   supportedChains?: string[]
-  chains?: string[]  // Alternative name for chains
+  chains?: string[]
   size: number
-  cloneUrl?: string  // Add for git operations
+  cloneUrl?: string
 }
 
 export interface RepositoryFilters {
@@ -43,16 +43,16 @@ export interface CreateRepositoryRequest {
   name: string
   description?: string
   isPrivate?: boolean
-  visibility?: 'public' | 'private'  // Alternative to isPrivate
+  visibility?: 'public' | 'private'
   supportedChains?: string[]
-  chains?: string[]  // Alternative name
+  chains?: string[]
   language?: string
   license?: string
   projectType?: 'DeFi' | 'NFT' | 'DAO' | 'Gaming' | 'Infrastructure' | 'CrossChain' | 'Other'
   autoDeployEnabled?: boolean
 }
 
-// Add file-related types for the file explorer
+// File-related types
 export interface FileEntry {
   path: string
   name: string
@@ -94,10 +94,18 @@ export interface CreateFolderRequest {
   folderName: string
 }
 
+// Updated to match backend expectations
 export interface UploadFileRequest {
   repositoryId: string
   path: string
   content: number[]
   commitMessage: string
-  branch?: string
+  branch?: string | undefined  // Make branch truly optional
+}
+
+// Additional file types
+export interface FileListResponse {
+  files: FileEntry[]
+  totalCount: number
+  path: string
 }
