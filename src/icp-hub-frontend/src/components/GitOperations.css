@@ -1,0 +1,661 @@
+/* Git Operations */
+.git-operations {
+  width: 100%;
+  color: #e2e8f0;
+  padding: 24px;
+}
+
+.git-operations-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.git-operations-header h2 {
+  color: #e2e8f0;
+  font-size: 28px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.current-branch {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(59, 130, 246, 0.1);
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.branch-label {
+  color: #94a3b8;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.branch-name {
+  color: #3b82f6;
+  font-size: 16px;
+  font-weight: 600;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+/* Git Tabs */
+.git-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  padding: 8px;
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 8px;
+}
+
+.git-tab {
+  background: transparent;
+  color: #94a3b8;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex: 1;
+}
+
+.git-tab:hover {
+  color: #e2e8f0;
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.git-tab.active {
+  background: #3b82f6;
+  color: white;
+}
+
+/* Tab Content */
+.git-tab-content {
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.tab-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.tab-header h3 {
+  color: #e2e8f0;
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.btn-primary {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: #94a3b8;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+  background: rgba(59, 130, 246, 0.1);
+  color: #e2e8f0;
+  border-color: rgba(59, 130, 246, 0.5);
+}
+
+.btn-danger {
+  background: transparent;
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+/* Branches List */
+.branches-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.branch-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.4);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.branch-item:hover {
+  border-color: rgba(59, 130, 246, 0.4);
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.branch-item.current {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.branch-info {
+  flex: 1;
+}
+
+.branch-name-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.branch-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #e2e8f0;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+.default-badge {
+  background: #10b981;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.current-badge {
+  background: #3b82f6;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.branch-details {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.commit-hash {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  color: #3b82f6;
+}
+
+.last-commit {
+  color: #cbd5e1;
+}
+
+.branch-status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 20px;
+}
+
+.ahead {
+  color: #10b981;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.behind {
+  color: #f59e0b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.branch-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Commits List */
+.commits-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.commit-item {
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.4);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.commit-item:hover {
+  border-color: rgba(59, 130, 246, 0.4);
+  background: rgba(15, 23, 42, 0.6);
+  transform: translateY(-1px);
+}
+
+.commit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.commit-hash {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  color: #3b82f6;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.commit-branch {
+  background: rgba(59, 130, 246, 0.2);
+  color: #3b82f6;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.commit-message {
+  font-size: 16px;
+  font-weight: 600;
+  color: #e2e8f0;
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.commit-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.commit-author {
+  color: #3b82f6;
+}
+
+.commit-time {
+  color: #94a3b8;
+}
+
+.commit-files {
+  color: #f59e0b;
+}
+
+.commit-changes {
+  display: flex;
+  gap: 8px;
+}
+
+.additions {
+  color: #10b981;
+}
+
+.deletions {
+  color: #ef4444;
+}
+
+/* Merge Requests List */
+.merge-requests-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.merge-request-item {
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.4);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.merge-request-item:hover {
+  border-color: rgba(59, 130, 246, 0.4);
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.mr-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.mr-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #e2e8f0;
+  flex: 1;
+  margin-right: 16px;
+}
+
+.mr-status {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: white;
+}
+
+.conflict-badge {
+  background: #f59e0b;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.mr-description {
+  color: #cbd5e1;
+  font-size: 14px;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.mr-branches {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.source-branch {
+  background: rgba(59, 130, 246, 0.2);
+  color: #3b82f6;
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-weight: 500;
+}
+
+.merge-arrow {
+  color: #94a3b8;
+  font-size: 18px;
+}
+
+.target-branch {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-weight: 500;
+}
+
+.mr-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.mr-author {
+  color: #3b82f6;
+}
+
+.mr-time {
+  color: #94a3b8;
+}
+
+.mr-reviewers {
+  color: #f59e0b;
+}
+
+.mr-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Modals */
+.commit-detail-backdrop,
+.create-branch-backdrop,
+.create-mr-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.commit-detail-modal,
+.create-branch-modal,
+.create-mr-modal {
+  background: rgba(30, 41, 59, 0.95);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+  backdrop-filter: blur(20px);
+}
+
+.commit-detail-header,
+.create-branch-header,
+.create-mr-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 24px 0 24px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.commit-detail-header h3,
+.create-branch-header h3,
+.create-mr-header h3 {
+  color: #e2e8f0;
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+  color: #e2e8f0;
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.commit-detail-content,
+.create-branch-content,
+.create-mr-content {
+  padding: 0 24px 24px 24px;
+}
+
+.commit-info {
+  margin-bottom: 24px;
+}
+
+.commit-hash-full {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  color: #3b82f6;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.commit-message-full {
+  font-size: 18px;
+  font-weight: 600;
+  color: #e2e8f0;
+  margin-bottom: 16px;
+}
+
+.commit-author-full,
+.commit-time-full,
+.commit-branch-full {
+  color: #94a3b8;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.commit-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-label {
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.stat-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.stat-value.additions {
+  color: #10b981;
+}
+
+.stat-value.deletions {
+  color: #ef4444;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .git-operations {
+    padding: 16px;
+  }
+  
+  .git-operations-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  
+  .git-tabs {
+    flex-direction: column;
+  }
+  
+  .branch-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  
+  .branch-status {
+    margin: 0;
+    flex-direction: row;
+  }
+  
+  .branch-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  
+  .commit-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .mr-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .mr-status {
+    align-items: flex-start;
+  }
+  
+  .mr-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .mr-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

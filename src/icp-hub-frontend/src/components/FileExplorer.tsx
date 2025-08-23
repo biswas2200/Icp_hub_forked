@@ -17,13 +17,15 @@ export interface FileExplorerProps {
   currentPath: string;
   onFileSelect: (file: FileNode) => void | Promise<void>;
   onFileUpload?: () => void;
+  refreshTrigger?: number; // Add this to trigger refresh
 }
 
 const FileExplorer: React.FC<FileExplorerProps> = ({
   repositoryId,
   currentPath = '',
   onFileSelect,
-  onFileUpload
+  onFileUpload,
+  refreshTrigger
 }) => {
   const [files, setFiles] = useState<FileNode[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,7 +37,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   // Fetch files when component mounts or dependencies change
   useEffect(() => {
     fetchFiles();
-  }, [repositoryId, currentPath]);
+  }, [repositoryId, currentPath, refreshTrigger]);
 
   const fetchFiles = async () => {
     setLoading(true);

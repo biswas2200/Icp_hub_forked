@@ -1,0 +1,86 @@
+.backend-status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  border: 1px solid transparent;
+}
+
+.backend-status-indicator .status-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.backend-status-indicator .status-message {
+  flex: 1;
+  white-space: nowrap;
+}
+
+.backend-status-indicator .retry-button {
+  background: none;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: inherit;
+}
+
+.backend-status-indicator .retry-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+/* Status-specific styles */
+.backend-status-indicator.status-checking {
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+  border-color: rgba(59, 130, 246, 0.2);
+}
+
+.backend-status-indicator.status-online {
+  background: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
+  border-color: rgba(34, 197, 94, 0.2);
+}
+
+.backend-status-indicator.status-offline {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+.backend-status-indicator.status-error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.backend-status-indicator.status-unknown {
+  background: rgba(107, 114, 128, 0.1);
+  color: #6b7280;
+  border-color: rgba(107, 114, 128, 0.2);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .backend-status-indicator {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  
+  .backend-status-indicator .status-message {
+    font-size: 12px;
+  }
+  
+  .backend-status-indicator .retry-button {
+    padding: 3px 6px;
+    font-size: 11px;
+  }
+}
+

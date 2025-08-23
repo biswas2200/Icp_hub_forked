@@ -1,6 +1,6 @@
 // src/icp-hub-frontend/src/components/RepositoryDetail.tsx
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import type { Repository } from '../types/repository'
 import { repositoryService } from '../services/repositoryService'
 import fileService, { type FileUploadProgress } from '../services/fileService'
@@ -8,6 +8,8 @@ import PageLayout from './PageLayout'
 import ProfileModal from './ProfileModal'
 import FileExplorer from './FileExplorer'
 import CreateFolderModal from './CreateFolderModal'
+import FileUploadModal from './FileUploadModal'
+import FileStatusDisplay, { type FileOperation } from './FileStatusDisplay'
 import './RepositoryDetail.css'
 
 // Import the FileNode type from your types
@@ -38,11 +40,11 @@ function RepositoryDetail({ repositoryId, onBack }: RepositoryDetailProps) {
   const [fileContent, setFileContent] = useState<string>('')
   const [showFileViewer, setShowFileViewer] = useState(false)
   const [showCreateFolder, setShowCreateFolder] = useState(false)
+  const [showFileUpload, setShowFileUpload] = useState(false)
   const [currentPath, setCurrentPath] = useState<string>('')
   const [breadcrumbs, setBreadcrumbs] = useState<string[]>([])
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const [uploadProgress, setUploadProgress] = useState<number>(0)
-  const [isUploading, setIsUploading] = useState(false)
+  const [fileOperations, setFileOperations] = useState<FileOperation[]>([])
+  const [fileExplorerRefresh, setFileExplorerRefresh] = useState(0)
 
   // Helper function to safely format dates
   const formatDate = (date: string | number | undefined): string => {
@@ -134,12 +136,19 @@ function RepositoryDetail({ repositoryId, onBack }: RepositoryDetailProps) {
     }
   }
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files
-    if (!files || files.length === 0) return
+  const handleFileUpload = async (files: File[]) => {
+    // Create operation for each file
+    const operations: FileOperation[] = files.map((file, index) => ({
+      id: `upload-${Date.now()}-${index}`,
+      type: 'upload',
+      status: 'pending',
+      message: `Uploading ${file.name}`,
+      details: `To ${currentPath ? `${currentPath}/` : ''}`,
+      timestamp: new Date(),
+      progress: 0
+    }))
 
-    setIsUploading(true)
-    setUploadProgress(0)
+    setFileOperations(prev => [...prev, ...operations])
 
     try {
       const uploadedFiles = await fileService.uploadMultipleFiles(
@@ -147,32 +156,74 @@ function RepositoryDetail({ repositoryId, onBack }: RepositoryDetailProps) {
         files,
         currentPath,
         (fileName: string, progress: FileUploadProgress) => {
-          setUploadProgress(progress.percentage)
-          console.log(`Uploading ${fileName}: ${progress.percentage}%`)
+          // Update operation progress
+          setFileOperations(prev => prev.map(op => 
+            op.message === `Uploading ${fileName}` 
+              ? { ...op, progress: progress.percentage }
+              : op
+          ))
         }
       )
       
+      // Update operations to success
+      setFileOperations(prev => prev.map(op => 
+        op.type === 'upload' && op.status === 'pending'
+          ? { ...op, status: 'success', message: `Uploaded ${op.message.replace('Uploading ', '')}` }
+          : op
+      ))
+      
       console.log('Files uploaded successfully:', uploadedFiles)
-      // Trigger a refresh of the file explorer
-      // This could be done through a callback or state update
+      
+      // Refresh file explorer
+      refreshFileExplorer()
+      
     } catch (err) {
       console.error('Failed to upload files:', err)
-    } finally {
-      setIsUploading(false)
-      setUploadProgress(0)
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
+      
+      // Update operations to error
+      setFileOperations(prev => prev.map(op => 
+        op.type === 'upload' && op.status === 'pending'
+          ? { ...op, status: 'error', message: `Failed to upload ${op.message.replace('Uploading ', '')}` }
+          : op
+      ))
     }
   }
 
   const handleCreateFolder = async (folderName: string) => {
+    const operation: FileOperation = {
+      id: `create-folder-${Date.now()}`,
+      type: 'create-folder',
+      status: 'pending',
+      message: `Creating folder ${folderName}`,
+      details: `In ${currentPath ? `${currentPath}/` : ''}`,
+      timestamp: new Date()
+    }
+
+    setFileOperations(prev => [...prev, operation])
+
     try {
       await fileService.createFolder(repositoryId, currentPath, folderName)
       setShowCreateFolder(false)
-      // Trigger refresh of file explorer
+      
+      // Update operation to success
+      setFileOperations(prev => prev.map(op => 
+        op.id === operation.id 
+          ? { ...op, status: 'success', message: `Created folder ${folderName}` }
+          : op
+      ))
+      
+      // Refresh file explorer
+      refreshFileExplorer()
+      
     } catch (err) {
       console.error('Failed to create folder:', err)
+      
+      // Update operation to error
+      setFileOperations(prev => prev.map(op => 
+        op.id === operation.id 
+          ? { ...op, status: 'error', message: `Failed to create folder ${folderName}` }
+          : op
+      ))
     }
   }
 
@@ -183,6 +234,18 @@ function RepositoryDetail({ repositoryId, onBack }: RepositoryDetailProps) {
       const newPath = breadcrumbs.slice(0, index + 1).join('/')
       setCurrentPath(newPath)
     }
+  }
+
+  const dismissFileOperation = (id: string) => {
+    setFileOperations(prev => prev.filter(op => op.id !== id))
+  }
+
+  const clearAllFileOperations = () => {
+    setFileOperations([])
+  }
+
+  const refreshFileExplorer = () => {
+    setFileExplorerRefresh(prev => prev + 1)
   }
 
   if (loading) {
@@ -428,28 +491,21 @@ npm start</code></pre>
                       </button>
                       <button 
                         className="upload-btn"
-                        onClick={() => fileInputRef.current?.click()}
+                        onClick={() => setShowFileUpload(true)}
                       >
                         📤 Upload Files
                       </button>
                     </div>
                   </div>
 
-                  {/* File Upload Progress */}
-                  {isUploading && (
-                    <div className="upload-progress-bar">
-                      <div className="progress-info">
-                        <span>Uploading files...</span>
-                        <span>{uploadProgress}%</span>
-                      </div>
-                      <div className="progress-track">
-                        <div 
-                          className="progress-fill"
-                          style={{ width: `${uploadProgress}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
+
+
+                  {/* File Status Display */}
+                  <FileStatusDisplay
+                    operations={fileOperations}
+                    onDismiss={dismissFileOperation}
+                    onClearAll={clearAllFileOperations}
+                  />
 
                   {/* File Explorer Component */}
                   <FileExplorer
@@ -457,6 +513,7 @@ npm start</code></pre>
                     onFileSelect={handleFileSelect}
                     onFileUpload={() => {/* Refresh callback */}}
                     currentPath={currentPath}
+                    refreshTrigger={fileExplorerRefresh}
                   />
                   <div className="commits-list">
                     <div className="commit-item">
@@ -655,14 +712,15 @@ npm start</code></pre>
           />
         )}
 
-        {/* Hidden file input */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          onChange={handleFileUpload}
-          style={{ display: 'none' }}
-        />
+        {/* File Upload Modal */}
+        {showFileUpload && (
+          <FileUploadModal
+            isOpen={showFileUpload}
+            onClose={() => setShowFileUpload(false)}
+            onUpload={handleFileUpload}
+            currentPath={currentPath}
+          />
+        )}
 
         <ProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} profile={creator} />
       </div>

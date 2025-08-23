@@ -4,12 +4,12 @@ import WalletConnectionModal from './WalletConnectionModal'
 import './Sidebar.css'
 
 interface SidebarProps {
-  currentSection: 'home' | 'repositories' | 'governance' | 'documentation'
-  onSectionChange: (section: 'home' | 'repositories' | 'governance' | 'documentation') => void
+  currentSection: 'home' | 'repositories' | 'governance' | 'documentation' | 'import-github'
+  onSectionChange: (section: 'home' | 'repositories' | 'governance' | 'documentation' | 'import-github') => void
 }
 
 interface NavItem {
-  id: 'home' | 'repositories' | 'governance' | 'documentation'
+  id: 'home' | 'repositories' | 'governance' | 'documentation' | 'import-github'
   label: string
   icon: string
   description: string
@@ -27,6 +27,12 @@ const navItems: NavItem[] = [
     label: 'Repositories',
     icon: '📁',
     description: 'Manage your projects'
+  },
+  {
+    id: 'import-github',
+    label: 'Import GitHub',
+    icon: '📥',
+    description: 'Import from GitHub'
   },
   {
     id: 'governance',
@@ -69,7 +75,7 @@ function Sidebar({ currentSection, onSectionChange }: SidebarProps) {
     }
   }, [currentSection])
 
-  const handleNavClick = (section: 'home' | 'repositories' | 'governance' | 'documentation') => {
+  const handleNavClick = (section: 'home' | 'repositories' | 'governance' | 'documentation' | 'import-github') => {
     onSectionChange(section)
   }
 
