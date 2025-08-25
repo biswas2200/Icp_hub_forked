@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { repositoryService } from '../services/repositoryService'
-import type { Repository } from '../services/repositoryService'
+import type { Repository } from '../types/repository'
 import NewRepositoryModal from './NewRepositoryModal'
 import RepositoryDetail from './RepositoryDetail'
 import ProfileModal, { type ProfileData } from './ProfileModal'

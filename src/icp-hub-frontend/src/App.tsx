@@ -1,21 +1,28 @@
 import './App.css'
 import { useState, useEffect } from 'react'
 import Repositories from './components/Repositories'
+import ImportGitHub from './components/ImportGitHub'
 import Governance from './components/Governance'
 import Documentation from './components/Documentation'
+import GitOperations from './components/GitOperations'
+import RepositoryStats from './components/RepositoryStats'
 import { WalletProvider, useWallet } from './services/walletService'
 import WalletConnectionModal from './components/WalletConnectionModal'
 import UnifiedSearch from './components/UnifiedSearch'
 import SearchResults from './components/SearchResults'
+
+
 import type { SearchType, SearchResult } from './types'
 
 function AppContent() {
-  const [currentSection, setCurrentSection] = useState<'home' | 'repositories' | 'governance' | 'documentation'>('home')
+  const [currentSection, setCurrentSection] = useState<'home' | 'repositories' | 'governance' | 'documentation' | 'import-github' | 'git-operations' | 'stats' | 'profile'>('home')
   const [showWalletModal, setShowWalletModal] = useState(false)
+
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [showSearchResults, setShowSearchResults] = useState(false)
   const [currentSearchQuery, setCurrentSearchQuery] = useState('')
   const [currentSearchType, setCurrentSearchType] = useState<SearchType>('all')
+
   const walletContext = useWallet()
 
     const handleSearch = (query: string, type: SearchType) => {
@@ -70,6 +77,8 @@ function AppContent() {
 
   return (
     <div className="okh-root">
+
+      
       {/* Navigation */}
       <nav className="okh-nav">
         <div className="okh-nav-container">
@@ -92,6 +101,13 @@ function AppContent() {
               Repositories
             </a>
             <a
+              href="#import-github"
+              className={`okh-nav-link ${currentSection === 'import-github' ? 'active' : ''}`}
+              onClick={() => setCurrentSection('import-github')}
+            >
+              Import GitHub
+            </a>
+            <a
               href="#governance"
               className={`okh-nav-link ${currentSection === 'governance' ? 'active' : ''}`}
               onClick={() => setCurrentSection('governance')}
@@ -105,6 +121,22 @@ function AppContent() {
             >
               Documentation
             </a>
+
+            <a
+              href="#git-operations"
+              className={`okh-nav-link ${currentSection === 'git-operations' ? 'active' : ''}`}
+              onClick={() => setCurrentSection('git-operations')}
+            >
+              Git
+            </a>
+            <a
+              href="#stats"
+              className={`okh-nav-link ${currentSection === 'stats' ? 'active' : ''}`}
+              onClick={() => setCurrentSection('stats')}
+            >
+              Stats
+            </a>
+
           </div>
           {wallet.connected ? (
             <div className="okh-wallet-info">
@@ -115,6 +147,12 @@ function AppContent() {
                   : wallet.principal
                 }
               </span>
+              <button 
+                className="okh-profile-btn" 
+                onClick={() => setCurrentSection('profile')}
+              >
+                Profile
+              </button>
               <button className="okh-disconnect-btn" onClick={disconnect}>
                 Disconnect
               </button>
@@ -149,24 +187,20 @@ function AppContent() {
             <div className="okh-container">
               {/* Overview Section */}
               <section className="okh-section">
-                <div className="okh-section-header">
-                  <h2 className="okh-section-title">Why OpenKeyHub?</h2>
-                  <p className="okh-section-subtitle">
-                    OpenKeyHub addresses fragmentation in Web3 by offering a single, intuitive interface that connects disparate
-                    blockchain networks. Leverage unique capabilities of different chains while maintaining a consistent
-                    development workflow.
-                  </p>
-                </div>
+                <h2 className="okh-section-title">Why OpenKeyHub?</h2>
+                <p className="okh-section-subtitle">
+                  OpenKeyHub addresses fragmentation in Web3 by offering a single, intuitive interface that connects disparate
+                  blockchain networks. Leverage unique capabilities of different chains while maintaining a consistent
+                  development workflow.
+                </p>
               </section>
 
               {/* Features Section */}
               <section className="okh-section" id="features">
-                <div className="okh-section-header">
-                  <h2 className="okh-section-title">Core Features</h2>
-                  <p className="okh-section-subtitle">
-                    Everything you need to build, deploy, and manage multichain applications
-                  </p>
-                </div>
+                <h2 className="okh-section-title">Core Features</h2>
+                <p className="okh-section-subtitle">
+                  Everything you need to build, deploy, and manage multichain applications
+                </p>
 
                 <div className="okh-grid">
                   <div className="okh-card">
@@ -213,12 +247,10 @@ function AppContent() {
 
               {/* Getting Started Section */}
               <section className="okh-section" id="get-started">
-                <div className="okh-section-header">
-                  <h2 className="okh-section-title">Getting Started</h2>
-                  <p className="okh-section-subtitle">
-                    Get up and running with OpenKeyHub in just a few simple steps
-                  </p>
-                </div>
+                <h2 className="okh-section-title">Getting Started</h2>
+                <p className="okh-section-subtitle">
+                  Get up and running with OpenKeyHub in just a few simple steps
+                </p>
                 <ol className="okh-steps">
                   <li>Clone the repository and install all required dependencies</li>
                   <li>Configure environment variables for your canisters and networks</li>
@@ -231,10 +263,23 @@ function AppContent() {
         </>
       ) : currentSection === 'repositories' ? (
         <Repositories />
+      ) : currentSection === 'import-github' ? (
+        <ImportGitHub />
       ) : currentSection === 'governance' ? (
         <Governance />
       ) : currentSection === 'documentation' ? (
         <Documentation />
+      ) : currentSection === 'git-operations' ? (
+        <GitOperations repositoryId="demo" currentBranch="main" />
+      ) : currentSection === 'stats' ? (
+        <RepositoryStats />
+      ) : currentSection === 'profile' ? (
+        <div className="profile-section">
+          <div className="okh-container">
+            <h2>User Profile</h2>
+            <p>Profile management coming soon...</p>
+          </div>
+        </div>
       ) : null}
 
       {/* Footer */}
@@ -258,6 +303,8 @@ function AppContent() {
         isVisible={showSearchResults}
         onClose={closeSearchResults}
       />
+
+
     </div>
   )
 }

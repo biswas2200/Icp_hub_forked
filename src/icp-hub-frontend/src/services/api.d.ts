@@ -294,6 +294,7 @@ export interface ApiService {
   
   // System methods
   health(): Promise<boolean>;
+  checkBackendAvailability(): Promise<boolean>;
   
   // Utility methods
   fileToUint8Array(file: File): Promise<number[]>;

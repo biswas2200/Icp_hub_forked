@@ -1,48 +1,7 @@
 import apiService, { type SerializableRepository } from './api.js';
+import type { RepositoryListResponse, Repository, RepositoryFilters, CreateRepositoryRequest } from '../types/repository';
 
-export interface Repository {
-  id: string
-  name: string
-  description?: string
-  owner: string
-  visibility: 'public' | 'private'
-  stars: number
-  forks: number
-  watchers: number
-  issues: number
-  language?: string
-  license?: string
-  createdAt: string
-  updatedAt: string
-  chains?: string[]
-  cloneUrl?: string
-}
-
-export interface RepositoryFilters {
-  search?: string
-  language?: string
-  chain?: string
-  sort?: 'updated' | 'stars' | 'forks' | 'name'
-  visibility?: 'public' | 'private'
-}
-
-export interface RepositoryListResponse {
-  repositories: Repository[]
-  total: number
-  page: number
-  limit: number
-}
-
-export interface CreateRepositoryRequest {
-  name: string
-  description?: string
-  visibility: 'public' | 'private'
-  chains?: string[]
-  language?: string
-  license?: string
-  projectType?: 'DeFi' | 'NFT' | 'DAO' | 'Gaming' | 'Infrastructure' | 'CrossChain' | 'Other'
-  autoDeployEnabled?: boolean
-}
+// Using types from ../types/repository.ts
 
 /**
  * Repository ID Management Utility
@@ -89,6 +48,109 @@ class RepositoryService {
       return String((error as any).message)
     }
     return 'Unknown error occurred'
+  }
+
+  private getMockRepositories(): RepositoryListResponse {
+    const mockRepositories: Repository[] = [
+      {
+        id: 'repo_1',
+        name: 'ICP-Hub-Backend',
+        description: 'A comprehensive backend system for the Internet Computer platform',
+        owner: '2vxsx-fae',
+        isPrivate: false,
+        visibility: 'public',
+        stars: 45,
+        forks: 12,
+        watchers: 23,
+        issues: 8,
+        language: 'Motoko',
+        license: 'MIT',
+        createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+        chains: ['ICP', 'Ethereum'],
+        size: 1024 * 1024 * 50 // 50MB
+      },
+      {
+        id: 'repo_2',
+        name: 'Chain-Fusion-Protocol',
+        description: 'Cross-chain interoperability solution for DeFi applications',
+        owner: '2vxsx-fae',
+        isPrivate: false,
+        visibility: 'public',
+        stars: 67,
+        forks: 18,
+        watchers: 34,
+        issues: 15,
+        language: 'Rust',
+        license: 'Apache-2.0',
+        createdAt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+        chains: ['ICP', 'Ethereum', 'Solana', 'Polygon'],
+        size: 1024 * 1024 * 75 // 75MB
+      },
+      {
+        id: 'repo_3',
+        name: 'Web3-Governance-DAO',
+        description: 'Decentralized governance platform with proposal and voting systems',
+        owner: '2vxsx-fae',
+        isPrivate: false,
+        visibility: 'public',
+        stars: 89,
+        forks: 25,
+        watchers: 56,
+        issues: 22,
+        language: 'TypeScript',
+        license: 'MIT',
+        createdAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+        chains: ['ICP', 'Ethereum', 'Polygon'],
+        size: 1024 * 1024 * 30 // 30MB
+      },
+      {
+        id: 'repo_4',
+        name: 'NFT-Marketplace-ICP',
+        description: 'High-performance NFT marketplace built on Internet Computer',
+        owner: '2vxsx-fae',
+        isPrivate: false,
+        visibility: 'public',
+        stars: 123,
+        forks: 31,
+        watchers: 78,
+        issues: 19,
+        language: 'Motoko',
+        license: 'MIT',
+        createdAt: new Date(Date.now() - 75 * 24 * 60 * 60 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+        chains: ['ICP'],
+        size: 1024 * 1024 * 40 // 40MB
+      },
+      {
+        id: 'repo_5',
+        name: 'DeFi-Yield-Farming',
+        description: 'Advanced yield farming strategies for multiple chains',
+        owner: '2vxsx-fae',
+        isPrivate: false,
+        visibility: 'public',
+        stars: 156,
+        forks: 42,
+        watchers: 89,
+        issues: 28,
+        language: 'Solidity',
+        license: 'GPL-3.0',
+        createdAt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+        chains: ['Ethereum', 'Polygon', 'Arbitrum', 'BSC'],
+        size: 1024 * 1024 * 60 // 60MB
+      }
+    ]
+
+    return {
+      repositories: mockRepositories,
+      total: mockRepositories.length,
+      page: 0,
+      limit: 100,
+      hasMore: false
+    }
   }
 
   private mapChainsToBlockchainTypes(chains?: string[]): any[] {
@@ -173,6 +235,7 @@ class RepositoryService {
                   name: repo.name,
                   description: repo.description && repo.description.length > 0 ? repo.description[0] : undefined,
                   owner: repo.owner.toString(),
+                  isPrivate: repo.isPrivate || false,
                   visibility: (repo.isPrivate ? 'private' : 'public') as 'public' | 'private',
                   stars: Number(repo.stars),
                   forks: Number(repo.forks),
@@ -182,7 +245,8 @@ class RepositoryService {
                   license: repo.settings && repo.settings.license && repo.settings.license.length > 0 ? repo.settings.license[0] : undefined,
                   createdAt: new Date(Number(repo.createdAt) / 1000000).toISOString(),
                   updatedAt: new Date(Number(repo.updatedAt) / 1000000).toISOString(),
-                  chains: []
+                  chains: [],
+                  size: repo.size || 0
                 }))
                 
                 // Also fetch public repositories
@@ -201,6 +265,7 @@ class RepositoryService {
                       name: repo.name,
                       description: repo.description && repo.description.length > 0 ? repo.description[0] : undefined,
                       owner: repo.owner.toString(),
+                      isPrivate: false,
                       visibility: 'public' as 'public' | 'private',
                       stars: Number(repo.stars),
                       forks: Number(repo.forks),
@@ -210,7 +275,8 @@ class RepositoryService {
                       license: repo.settings && repo.settings.license && repo.settings.license.length > 0 ? repo.settings.license[0] : undefined,
                       createdAt: new Date(Number(repo.createdAt) / 1000000).toISOString(),
                       updatedAt: new Date(Number(repo.updatedAt) / 1000000).toISOString(),
-                      chains: []
+                      chains: [],
+                      size: repo.size || 0
                     }))
                   
                   // Combine user's repositories with other public repositories
@@ -220,7 +286,8 @@ class RepositoryService {
                     repositories: allRepositories,
                     total: allRepositories.length,
                     page: 1,
-                    limit: 100
+                    limit: 100,
+                    hasMore: false
                   }
                 } else {
                   // If public fetch fails, return just user's repositories
@@ -228,7 +295,8 @@ class RepositoryService {
                     repositories: userRepositories,
                     total: userRepositories.length,
                     page: 1,
-                    limit: 100
+                    limit: 100,
+                    hasMore: false
                   }
                 }
               }
@@ -256,6 +324,7 @@ class RepositoryService {
             name: repo.name,
             description: repo.description && repo.description.length > 0 ? repo.description[0] : undefined,
             owner: repo.owner.toString(),
+            isPrivate: false,
             visibility: 'public' as 'public' | 'private',
             stars: Number(repo.stars),
             forks: Number(repo.forks),
@@ -265,14 +334,16 @@ class RepositoryService {
             license: repo.settings && repo.settings.license && repo.settings.license.length > 0 ? repo.settings.license[0] : undefined,
             createdAt: new Date(Number(repo.createdAt) / 1000000).toISOString(),
             updatedAt: new Date(Number(repo.updatedAt) / 1000000).toISOString(),
-            chains: []
+            chains: [],
+            size: repo.size || 0
           }))
           
           return {
             repositories,
             total: Number(result.data.totalCount),
             page: 1,
-            limit: 100
+            limit: 100,
+            hasMore: false
           }
         } else {
           console.warn('Failed to fetch public repositories:', result.error)
@@ -310,6 +381,7 @@ class RepositoryService {
           name: repo.name,
           description: repo.description && repo.description.length > 0 ? repo.description[0] : undefined,
           owner: repo.owner.toString(),
+          isPrivate: repo.isPrivate || false,
           visibility: (repo.isPrivate ? 'private' : 'public') as 'public' | 'private',
           stars: Number(repo.stars),
           forks: Number(repo.forks),
@@ -320,6 +392,7 @@ class RepositoryService {
           createdAt: new Date(Number(repo.createdAt) / 1000000).toISOString(),
           updatedAt: new Date(Number(repo.updatedAt) / 1000000).toISOString(),
           chains: [],
+          size: Number(repo.size) || 0,
           cloneUrl: `https://openkeyhub.com/${repo.owner}/${repo.name}.git`
         }
       } else {
@@ -369,6 +442,7 @@ class RepositoryService {
           name: repo.name,
           description: repo.description && repo.description.length > 0 ? repo.description[0] : undefined,
           owner: repo.owner.toString(),
+          isPrivate: repo.isPrivate || false,
           visibility: (repo.isPrivate ? 'private' : 'public') as 'public' | 'private',
           stars: Number(repo.stars),
           forks: Number(repo.forks),
@@ -379,6 +453,7 @@ class RepositoryService {
           createdAt: new Date(Number(repo.createdAt) / 1000000).toISOString(),
           updatedAt: new Date(Number(repo.updatedAt) / 1000000).toISOString(),
           chains: repositoryData.chains || [],
+          size: Number(repo.size) || 0,
           cloneUrl: `https://openkeyhub.com/${repo.owner}/${repo.name}.git`
         }
       } else {
@@ -412,6 +487,7 @@ class RepositoryService {
           name: repo.name,
           description: repo.description && repo.description.length > 0 ? repo.description[0] : undefined,
           owner: repo.owner.toString(),
+          isPrivate: repo.isPrivate || false,
           visibility: (repo.isPrivate ? 'private' : 'public') as 'public' | 'private',
           stars: Number(repo.stars),
           forks: Number(repo.forks),
@@ -422,6 +498,7 @@ class RepositoryService {
           createdAt: new Date(Number(repo.createdAt) / 1000000).toISOString(),
           updatedAt: new Date(Number(repo.updatedAt) / 1000000).toISOString(),
           chains: repositoryData.chains || [],
+          size: Number(repo.size) || 0,
           cloneUrl: `https://openkeyhub.com/${repo.owner}/${repo.name}.git`
         }
       } else {
@@ -522,34 +599,7 @@ class RepositoryService {
     }
   }
 
-  private getMockRepositories(): RepositoryListResponse {
-    const mockRepositories: Repository[] = [
-      {
-        id: 'repo_1',
-        name: 'cross-chain-defi',
-        description: 'Advanced DeFi protocol with cross-chain yield farming capabilities and automated market making',
-        owner: 'alice.icp',
-        visibility: 'public',
-        stars: 2341,
-        forks: 456,
-        watchers: 1234,
-        issues: 89,
-        language: 'Solidity',
-        license: 'MIT',
-        createdAt: '2024-01-15T10:30:00Z',
-        updatedAt: '2024-01-20T14:45:00Z',
-        chains: ['Ethereum', 'Polygon', 'BSC'],
-        cloneUrl: 'https://github.com/alice/cross-chain-defi.git'
-      }
-    ]
-
-    return {
-      repositories: mockRepositories,
-      total: mockRepositories.length,
-      page: 1,
-      limit: 50
-    }
-  }
+// Removed duplicate function - using the first one above
 
   private getMockRepository(id: string): Repository {
     const mockRepositories = this.getMockRepositories().repositories
@@ -569,6 +619,7 @@ class RepositoryService {
       name: repositoryData.name,
       description: repositoryData.description,
       owner: 'current-user.icp',
+      isPrivate: repositoryData.visibility === 'private',
       visibility: repositoryData.visibility,
       stars: 0,
       forks: 0,
@@ -579,6 +630,7 @@ class RepositoryService {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       chains: repositoryData.chains,
+      size: 0,
       cloneUrl: `https://github.com/current-user/${repositoryData.name}.git`
     }
     
